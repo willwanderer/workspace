@@ -33,8 +33,8 @@ if ($user && !empty($user['full_name'])) {
 ?>
 <header class="header">
     <div class="header-left">
-        <button class="sidebar-toggle header-btn" onclick="document.querySelector('.sidebar').classList.toggle('open')">
-            <span>☰</span>
+        <button class="sidebar-toggle header-btn" type="button" onclick="document.querySelector('.sidebar').classList.toggle('open'); document.querySelector('.sidebar-overlay')?.classList.toggle('show');">
+            ☰
         </button>
         <h1 class="header-title"><?= h($pageTitle) ?></h1>
     </div>

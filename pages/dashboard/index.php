@@ -156,7 +156,7 @@ for ($i = 6; $i >= 0; $i--) {
 <!-- Dashboard Content -->
 <div class="dashboard">
     <!-- Stats Cards -->
-    <div class="stats-grid">
+    <div class="stats-grid dashboard-stats-grid">
         <div class="stat-card">
             <div class="stat-icon blue">✅</div>
             <div class="stat-content">
@@ -191,7 +191,7 @@ for ($i = 6; $i >= 0; $i--) {
     </div>
     
     <!-- Charts Row -->
-    <div class="d-grid" style="grid-template-columns: 2fr 1fr; gap: var(--space-5); margin-bottom: var(--space-6);">
+    <div class="d-grid dashboard-charts-grid" style="margin-bottom: var(--space-6);">
         <!-- Activity Chart -->
         <div class="card">
             <div class="card-header">
@@ -222,7 +222,7 @@ for ($i = 6; $i >= 0; $i--) {
     </div>
     
     <!-- Content Row -->
-    <div class="d-grid" style="grid-template-columns: 1fr 1fr 1fr; gap: var(--space-5);">
+    <div class="d-grid dashboard-content-grid">
         <!-- Upcoming Deadlines -->
         <div class="card">
             <div class="card-header">

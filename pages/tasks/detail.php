@@ -412,6 +412,26 @@ $currentFolderId = $_GET['folder_id'] ?? 'main';
                 ⏰ Deadline: <?= formatDate($task['deadline'], 'd M Y') ?>
             </span>
             <?php endif; ?>
+            <!-- Progress Status -->
+            <?php 
+            $progress = 0;
+            if ($task['status'] === 'completed') {
+                $progress = 100;
+            } elseif ($task['status'] === 'in_progress') {
+                $progress = 50;
+            } elseif ($task['status'] === 'pending') {
+                $progress = 0;
+            }
+            ?>
+            <span class="badge badge-info">
+                📊 Progres: <?= $progress ?>%
+            </span>
+        </div>
+        <!-- Progress Bar -->
+        <div style="margin-left: 44px; margin-top: 10px;">
+            <div class="progress" style="height: 8px; max-width: 300px;">
+                <div class="progress-bar" style="width: <?= $progress ?>%; background: var(--primary);"></div>
+            </div>
         </div>
         <?php if ($task['project_name']): ?>
         <p class="text-muted mt-2" style="margin-left: 44px;">
@@ -644,7 +664,7 @@ $currentFolderId = $_GET['folder_id'] ?? 'main';
                                 <?= $task['status'] === 'completed' ? '↩️ Tandai Ditunda' : '✓ Tandai Selesai' ?>
                             </button>
                         </form>
-                        <form method="POST" class="flex-1" onsubmit="return confirm('Apakah Anda yakin ingin menghapus tugas ini?');">
+                        <form method="POST" class="flex-1" onsubmit="event.preventDefault(); swalConfirm('Hapus tugas ini?', 'Tindakan ini tidak dapat dibatalkan.', 'warning').then(result => { if (result.isConfirmed) this.submit(); })">
                             <input type="hidden" name="action" value="delete">
                             <button type="submit" class="btn btn-danger w-100">🗑️ Hapus</button>
                         </form>

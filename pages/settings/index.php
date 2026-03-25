@@ -294,9 +294,11 @@ function exportData() {
 }
 
 function confirmDelete() {
-    if (confirm('Are you sure you want to delete your account? This action cannot be undone!')) {
-        alert('This feature requires additional confirmation in production.');
-    }
+    swalConfirm('Hapus akun Anda?', 'Tindakan ini tidak dapat dibatalkan.', 'warning').then(result => {
+        if (result.isConfirmed) {
+            alert('Fitur ini memerlukan konfirmasi tambahan.');
+        }
+    });
 }
 
 // Apply theme immediately when changed

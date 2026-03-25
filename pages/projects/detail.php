@@ -404,6 +404,11 @@ $currentFolderId = $_GET['folder_id'] ?? 'main';
                                                 <?= $task['status'] === 'completed' ? '↩️' : '✓' ?>
                                             </button>
                                         </form>
+                                        <form method="POST" style="display: inline;" onsubmit="return confirm('Apakah Anda yakin ingin menghapus tugas ini?');">
+                                            <input type="hidden" name="action" value="delete_task">
+                                            <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
+                                            <button type="submit" class="btn btn-sm btn-icon" title="Hapus Tugas" style="color: var(--error);">🗑️</button>
+                                        </form>
                                     </div>
                                 </div>
                             </div>
@@ -655,7 +660,7 @@ $currentFolderId = $_GET['folder_id'] ?? 'main';
                                 <?= $project['status'] === 'completed' ? '↩️ Aktifkan' : '✓ Tandai Selesai' ?>
                             </button>
                         </form>
-                        <form method="POST" class="flex-1" onsubmit="return confirm('Apakah Anda yakin ingin menghapus proyek ini?');">
+                        <form method="POST" class="flex-1" onsubmit="event.preventDefault(); swalConfirm('Hapus proyek ini?', 'Tindakan ini tidak dapat dibatalkan.', 'warning').then(result => { if (result.isConfirmed) this.submit(); })">
                             <input type="hidden" name="action" value="delete">
                             <button type="submit" class="btn btn-danger w-100">🗑️ Hapus</button>
                         </form>

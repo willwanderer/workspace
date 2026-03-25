@@ -136,7 +136,7 @@ $noteColors = [
                     <button class="btn btn-sm btn-icon" onclick="editNote(<?= $note['id'] ?>, '<?= h($note['title'] ?? '') ?>', '<?= h(addslashes($note['content'] ?? '')) ?>', '<?= $note['color'] ?>')" title="Edit" style="background: transparent; border: none;">
                         ✏️
                     </button>
-                    <form method="POST" onsubmit="return confirm('Delete this note?')">
+                    <form method="POST" onsubmit="event.preventDefault(); swalConfirm('Hapus catatan ini?', 'Tindakan ini tidak dapat dibatalkan.', 'warning').then(result => { if (result.isConfirmed) this.submit(); })">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="note_id" value="<?= $note['id'] ?>">
                         <button type="submit" class="btn btn-sm btn-icon" title="Delete" style="background: transparent; border: none;">🗑️</button>

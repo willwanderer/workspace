@@ -229,7 +229,7 @@ foreach ($allTagsResult as $row) {
                                 <button class="btn btn-sm btn-icon btn-secondary" onclick="editContact(<?= $contact['id'] ?>, '<?= h($contact['name']) ?>', '<?= h($contact['email'] ?? '') ?>', '<?= h($contact['phone'] ?? '') ?>', '<?= h($contact['company'] ?? '') ?>', '<?= h($contact['position'] ?? '') ?>', '<?= h($contact['address'] ?? '') ?>', '<?= h($contact['website'] ?? '') ?>', '<?= h($contact['notes'] ?? '') ?>', '<?= h($contact['tags'] ?? '') ?>')" title="Edit">
                                     ✏️
                                 </button>
-                                <form method="POST" onsubmit="return confirm('Are you sure you want to delete this contact?')">
+                                <form method="POST" onsubmit="event.preventDefault(); swalConfirm('Hapus kontak ini?', 'Tindakan ini tidak dapat dibatalkan.', 'warning').then(result => { if (result.isConfirmed) this.submit(); })">
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="contact_id" value="<?= $contact['id'] ?>">
                                     <button type="submit" class="btn btn-sm btn-icon btn-secondary" title="Delete">🗑️</button>

@@ -205,7 +205,7 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                     <button class="btn btn-sm btn-icon btn-secondary" onclick="editLink(<?= $link['id'] ?>, '<?= h($link['title']) ?>', '<?= h($link['url']) ?>', '<?= h($link['category']) ?>', <?= $link['is_pinned'] ?>, <?= $link['is_favorite'] ?>)" title="Edit">
                         ✏️
                     </button>
-                    <form method="POST" onsubmit="return confirm('Delete this link?')">
+                    <form method="POST" onsubmit="event.preventDefault(); swalConfirm('Hapus tautan ini?', 'Tindakan ini tidak dapat dibatalkan.', 'warning').then(result => { if (result.isConfirmed) this.submit(); })">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="link_id" value="<?= $link['id'] ?>">
                         <button type="submit" class="btn btn-sm btn-icon btn-secondary" title="Delete">🗑️</button>

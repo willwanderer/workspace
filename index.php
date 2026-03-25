@@ -447,6 +447,9 @@ if (!function_exists('formatFileSize')) {
 </head>
 <body>
     <?php if ($isLoggedIn): ?>
+    <!-- Sidebar Overlay for Mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay" style="display: none;"></div>
+    
     <!-- Sidebar -->
     <?php include 'includes/sidebar.php'; ?>
     

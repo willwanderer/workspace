@@ -89,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 $statusFilter = $_GET['status'] ?? 'all';
 $priorityFilter = $_GET['priority'] ?? 'all';
 $searchQuery = $_GET['search'] ?? '';
-$sortBy = $_GET['sort'] ?? 'default';
+$sortBy = $_GET['sort'] ?? 'by_project';
 $groupBy = $_GET['group'] ?? 'none';
 
 // Build query
@@ -260,209 +260,147 @@ foreach ($taskCounts as $row) {
         </button>
     </div>
     
-    <!-- Filters -->
-    <div class="card mb-5">
-        <div class="card-body">
-            <form method="GET" class="d-flex gap-3 flex-wrap align-center">
-                <input type="hidden" name="page" value="tasks">
-                
-                <div class="form-group" style="margin-bottom: 0; min-width: 200px;">
-                    <input type="text" name="search" class="form-control" placeholder="Cari tugas..." value="<?= h($searchQuery) ?>">
-                </div>
-                
-                <div class="form-group" style="margin-bottom: 0;">
-                    <select name="status" class="form-control" onchange="this.form.submit()">
-                        <option value="all" <?= $statusFilter === 'all' ? 'selected' : '' ?>>Semua Status (<?= $counts['all'] ?>)</option>
-                        <option value="pending" <?= $statusFilter === 'pending' ? 'selected' : '' ?>>Pending (<?= $counts['pending'] ?>)</option>
-                        <option value="in_progress" <?= $statusFilter === 'in_progress' ? 'selected' : '' ?>>In Progress (<?= $counts['in_progress'] ?>)</option>
-                        <option value="completed" <?= $statusFilter === 'completed' ? 'selected' : '' ?>>Selesai (<?= $counts['completed'] ?>)</option>
-                    </select>
-                </div>
-                
-                <div class="form-group" style="margin-bottom: 0;">
-                    <select name="priority" class="form-control" onchange="this.form.submit()">
-                        <option value="all" <?= $priorityFilter === 'all' ? 'selected' : '' ?>>Semua Prioritas</option>
-                        <option value="urgent" <?= $priorityFilter === 'urgent' ? 'selected' : '' ?>>Urgent</option>
-                        <option value="high" <?= $priorityFilter === 'high' ? 'selected' : '' ?>>High</option>
-                        <option value="medium" <?= $priorityFilter === 'medium' ? 'selected' : '' ?>>Medium</option>
-                        <option value="low" <?= $priorityFilter === 'low' ? 'selected' : '' ?>>Low</option>
-                    </select>
-                </div>
-
-                <div class="form-group" style="margin-bottom: 0;">
-                    <select name="sort" class="form-control" onchange="this.form.submit()">
-                        <option value="default" <?= $sortBy === 'default' ? 'selected' : '' ?>>Urutan Default</option>
+    <!-- Search & Sort -->
+    <div class="d-flex gap-3 mb-4 flex-wrap">
+        <div class="card" style="flex: 2; min-width: 300px;">
+            <div class="card-body d-flex gap-3 align-center" style="padding: var(--space-3);">
+                <form method="GET" class="d-flex gap-3 flex-wrap align-center" style="width: 100%;">
+                    <input type="hidden" name="page" value="tasks">
+                    <input type="hidden" name="sort" value="<?= h($sortBy) ?>">
+                    <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 150px;">
+                        <input type="text" name="search" class="form-control" placeholder="Cari tugas..." value="<?= h($searchQuery) ?>">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <select name="status" class="form-control" onchange="this.form.submit()">
+                            <option value="all" <?= $statusFilter === 'all' ? 'selected' : '' ?>>Semua Status (<?= $counts['all'] ?>)</option>
+                            <option value="pending" <?= $statusFilter === 'pending' ? 'selected' : '' ?>>Pending (<?= $counts['pending'] ?>)</option>
+                            <option value="in_progress" <?= $statusFilter === 'in_progress' ? 'selected' : '' ?>>In Progress (<?= $counts['in_progress'] ?>)</option>
+                            <option value="completed" <?= $statusFilter === 'completed' ? 'selected' : '' ?>>Selesai (<?= $counts['completed'] ?>)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <select name="priority" class="form-control" onchange="this.form.submit()">
+                            <option value="all" <?= $priorityFilter === 'all' ? 'selected' : '' ?>>Semua Prioritas</option>
+                            <option value="urgent" <?= $priorityFilter === 'urgent' ? 'selected' : '' ?>>Urgent</option>
+                            <option value="high" <?= $priorityFilter === 'high' ? 'selected' : '' ?>>High</option>
+                            <option value="medium" <?= $priorityFilter === 'medium' ? 'selected' : '' ?>>Medium</option>
+                            <option value="low" <?= $priorityFilter === 'low' ? 'selected' : '' ?>>Low</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-secondary">Filter</button>
+                    <a href="index.php?page=tasks&sort=<?= h($sortBy) ?>" class="btn btn-secondary">Hapus</a>
+                </form>
+            </div>
+        </div>
+        <div class="card" style="flex: 1; min-width: 200px;">
+            <div class="card-body d-flex gap-2 align-center" style="padding: var(--space-3);">
+                <form method="GET" class="d-flex gap-2 align-center" style="width: 100%;">
+                    <input type="hidden" name="page" value="tasks">
+                    <input type="hidden" name="search" value="<?= h($searchQuery) ?>">
+                    <input type="hidden" name="status" value="<?= h($statusFilter) ?>">
+                    <input type="hidden" name="priority" value="<?= h($priorityFilter) ?>">
+                    <select name="sort" class="form-control" style="width: 100%;" onchange="this.form.submit()">
+                        <option value="by_project" <?= $sortBy === 'by_project' ? 'selected' : '' ?>>Berdasarkan Proyek</option>
                         <option value="deadline_nearest" <?= $sortBy === 'deadline_nearest' ? 'selected' : '' ?>>Deadline Terdekat</option>
                         <option value="priority_high" <?= $sortBy === 'priority_high' ? 'selected' : '' ?>>Prioritas Tinggi</option>
                         <option value="status" <?= $sortBy === 'status' ? 'selected' : '' ?>>Berdasarkan Status</option>
-                        <option value="by_project" <?= $sortBy === 'by_project' ? 'selected' : '' ?>>Berdasarkan Proyek</option>
+                        <option value="default" <?= $sortBy === 'default' ? 'selected' : '' ?>>Urutan Default</option>
                     </select>
-                </div>
-                
-                <button type="submit" class="btn btn-secondary">Filter</button>
-                <a href="index.php?page=tasks" class="btn btn-secondary">Hapus</a>
-            </form>
+                </form>
+            </div>
         </div>
     </div>
     
     <!-- Tasks List -->
-    <div class="card">
-        <div class="card-body" style="padding: 0;">
-            <?php if (count($tasks) > 0): ?>
-                <?php if ($groupBy === 'project' || $sortBy === 'by_project'): ?>
-                    <?php if (count($standaloneTasks) > 0): ?>
-                    <div class="task-group-header" style="padding: var(--space-3) var(--space-4); background: var(--bg-secondary); border-bottom: 2px solid var(--primary); font-weight: 600;">
-                        📋 Tugas Tanpa Proyek (<?= count($standaloneTasks) ?>)
+    <?php if (count($tasks) > 0): ?>
+        <?php if ($groupBy === 'project' || $sortBy === 'by_project'): ?>
+            <?php if (count($standaloneTasks) > 0): ?>
+            <div class="mb-4">
+                <div class="card">
+                    <div class="card-header" style="background: var(--bg-tertiary);">
+                        <h3 class="card-title" style="font-size: 1rem;">📋 Tugas Tanpa Proyek (<?= count($standaloneTasks) ?>)</h3>
                     </div>
-                    <?php foreach ($standaloneTasks as $task): ?>
-                    <div class="task-item d-flex align-center gap-4 p-4" data-status="<?= $task['status'] ?>" data-priority="<?= $task['priority'] ?>" style="border-bottom: 1px solid var(--border-light);">
-                        <form method="POST" style="display: inline;">
-                            <input type="hidden" name="action" value="toggle">
-                            <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
-                            <input type="hidden" name="status" value="<?= $task['status'] ?>">
-                            <input type="checkbox" class="task-checkbox" <?= $task['status'] === 'completed' ? 'checked' : '' ?> onchange="this.form.submit()">
-                        </form>
-                        <div class="flex-1">
-                            <div class="d-flex align-center gap-2">
+                    <div class="card-body" style="padding: 0;">
+                        <?php foreach ($standaloneTasks as $task): ?>
+                        <div class="task-item d-flex align-center p-3" style="border-bottom: 1px solid var(--border-light); gap: 16px;">
+                            <div style="flex: 1; min-width: 200px;">
                                 <span class="font-weight-500 <?= $task['status'] === 'completed' ? 'text-muted' : '' ?>" style="<?= $task['status'] === 'completed' ? 'text-decoration: line-through;' : '' ?>"><?= h($task['title']) ?></span>
-                                <?php if ($task['status'] === 'completed'): ?><span class="badge badge-completed">Completed</span><?php endif; ?>
                             </div>
-                            <?php if ($task['description']): ?><div class="text-xs text-muted mt-1 truncate"><?= h($task['description']) ?></div><?php endif; ?>
+                            <span class="badge badge-<?= str_replace('_', '-', $task['status']) ?>" style="width: 80px; text-align: center;"><?= ucfirst(str_replace('_', ' ', $task['status'])) ?></span>
+                            <div class="text-xs text-muted" style="width: 90px;"><?= ucfirst($task['category']) ?></div>
+                            <span class="badge badge-<?= $task['priority'] ?>" style="width: 70px; text-align: center;"><?= ucfirst($task['priority']) ?></span>
+                            <div class="text-xs" style="width: 100px;">
+                                <?php if ($task['deadline']): ?>
+                                    <?php $deadline = new DateTime($task['deadline']); $now = new DateTime(); $isOverdue = $deadline < $now && $task['status'] !== 'completed'; $isDueSoon = !$isOverdue && $deadline <= new DateTime('+3 days'); ?>
+                                    <span class="<?= $isOverdue ? 'text-error' : ($isDueSoon ? 'text-warning' : 'text-muted') ?>"><?= $isOverdue ? '⚠️ ' : '' ?><?= formatDate($task['deadline'], 'M d, Y') ?></span>
+                                <?php else: ?><span class="text-muted">-</span><?php endif; ?>
+                            </div>
+                            <div class="d-flex gap-1">
+                                <a href="index.php?page=task_detail&id=<?= $task['id'] ?>" class="btn btn-sm btn-icon btn-secondary" title="Details">👁️</a>
+                                <button class="btn btn-sm btn-icon btn-secondary" onclick="editTask(<?= $task['id'] ?>, '<?= h($task['title']) ?>', '<?= h($task['description'] ?? '') ?>', '<?= $task['status'] ?>', '<?= $task['priority'] ?>', '<?= $task['category'] ?>', '<?= $task['deadline'] ?>')" title="Edit">✏️</button>
+                            </div>
                         </div>
-                        <div class="text-xs text-muted" style="min-width: 100px;"><?= ucfirst($task['category']) ?></div>
-                        <span class="badge badge-<?= $task['priority'] ?>" style="min-width: 70px; text-align: center;"><?= ucfirst($task['priority']) ?></span>
-                        <div style="min-width: 120px;">
-                            <?php if ($task['deadline']): ?>
-                                <?php $deadline = new DateTime($task['deadline']); $now = new DateTime(); $isOverdue = $deadline < $now && $task['status'] !== 'completed'; $isDueSoon = !$isOverdue && $deadline <= new DateTime('+3 days'); ?>
-                                <span class="text-xs <?= $isOverdue ? 'text-error' : ($isDueSoon ? 'text-warning' : 'text-muted') ?>"><?= $isOverdue ? '⚠️ ' : '' ?><?= formatDate($task['deadline'], 'M d, Y') ?></span>
-                            <?php else: ?><span class="text-xs text-muted">No deadline</span><?php endif; ?>
-                        </div>
-                        <div class="d-flex gap-2">
-                            <a href="index.php?page=task_detail&id=<?= $task['id'] ?>" class="btn btn-sm btn-icon btn-secondary" title="Details">👁️</a>
-                            <button class="btn btn-sm btn-icon btn-secondary" onclick="editTask(<?= $task['id'] ?>, '<?= h($task['title']) ?>', '<?= h($task['description'] ?? '') ?>', '<?= $task['status'] ?>', '<?= $task['priority'] ?>', '<?= $task['category'] ?>', '<?= $task['deadline'] ?>')" title="Edit">✏️</button>
-                            <form method="POST" onsubmit="return confirm('Are you sure you want to delete this task?')">
-                                <input type="hidden" name="action" value="delete">
-                                <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
-                                <button type="submit" class="btn btn-sm btn-icon btn-secondary" title="Delete">🗑️</button>
-                            </form>
-                        </div>
+                        <?php endforeach; ?>
                     </div>
-                    <?php endforeach; ?>
-                    <?php endif; ?>
-
-                    <?php foreach ($tasksByProject as $projectName => $projectTasks): ?>
-                    <div class="task-group-header" style="padding: var(--space-3) var(--space-4); background: var(--bg-secondary); border-bottom: 2px solid var(--primary); font-weight: 600;">
-                        📁 <?= h($projectName) ?> (<?= count($projectTasks) ?>)
+                </div>
+            </div>
+            <?php endif; ?>
+            <?php foreach ($tasksByProject as $projectName => $projectTasks): ?>
+            <div class="mb-4">
+                <div class="card">
+                    <div class="card-header" style="background: var(--bg-tertiary);">
+                        <h3 class="card-title" style="font-size: 1rem;">📁 <?= h($projectName) ?> (<?= count($projectTasks) ?>)</h3>
                     </div>
-                    <?php foreach ($projectTasks as $task): ?>
-                    <div class="task-item d-flex align-center gap-4 p-4" data-status="<?= $task['status'] ?>" data-priority="<?= $task['priority'] ?>" style="border-bottom: 1px solid var(--border-light);">
-                        <form method="POST" style="display: inline;">
-                            <input type="hidden" name="action" value="toggle">
-                            <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
-                            <input type="hidden" name="status" value="<?= $task['status'] ?>">
-                            <input type="checkbox" class="task-checkbox" <?= $task['status'] === 'completed' ? 'checked' : '' ?> onchange="this.form.submit()">
-                        </form>
-                        <div class="flex-1">
-                            <div class="d-flex align-center gap-2">
+                    <div class="card-body" style="padding: 0;">
+                        <?php foreach ($projectTasks as $task): ?>
+                        <div class="task-item d-flex align-center p-3" style="border-bottom: 1px solid var(--border-light); gap: 16px;">
+                            <div style="flex: 1; min-width: 200px;">
                                 <span class="font-weight-500 <?= $task['status'] === 'completed' ? 'text-muted' : '' ?>" style="<?= $task['status'] === 'completed' ? 'text-decoration: line-through;' : '' ?>"><?= h($task['title']) ?></span>
-                                <?php if ($task['status'] === 'completed'): ?><span class="badge badge-completed">Completed</span><?php endif; ?>
                             </div>
-                            <?php if ($task['description']): ?><div class="text-xs text-muted mt-1 truncate"><?= h($task['description']) ?></div><?php endif; ?>
+                            <span class="badge badge-<?= str_replace('_', '-', $task['status']) ?>" style="width: 80px; text-align: center;"><?= ucfirst(str_replace('_', ' ', $task['status'])) ?></span>
+                            <div class="text-xs text-muted" style="width: 90px;"><?= ucfirst($task['category']) ?></div>
+                            <span class="badge badge-<?= $task['priority'] ?>" style="width: 70px; text-align: center;"><?= ucfirst($task['priority']) ?></span>
+                            <div class="text-xs" style="width: 100px;">
+                                <?php if ($task['deadline']): ?>
+                                    <?php $deadline = new DateTime($task['deadline']); $now = new DateTime(); $isOverdue = $deadline < $now && $task['status'] !== 'completed'; $isDueSoon = !$isOverdue && $deadline <= new DateTime('+3 days'); ?>
+                                    <span class="<?= $isOverdue ? 'text-error' : ($isDueSoon ? 'text-warning' : 'text-muted') ?>"><?= $isOverdue ? '⚠️ ' : '' ?><?= formatDate($task['deadline'], 'M d, Y') ?></span>
+                                <?php else: ?><span class="text-muted">-</span><?php endif; ?>
+                            </div>
+                            <div class="d-flex gap-1">
+                                <a href="index.php?page=task_detail&id=<?= $task['id'] ?>" class="btn btn-sm btn-icon btn-secondary" title="Details">👁️</a>
+                                <button class="btn btn-sm btn-icon btn-secondary" onclick="editTask(<?= $task['id'] ?>, '<?= h($task['title']) ?>', '<?= h($task['description'] ?? '') ?>', '<?= $task['status'] ?>', '<?= $task['priority'] ?>', '<?= $task['category'] ?>', '<?= $task['deadline'] ?>')" title="Edit">✏️</button>
+                            </div>
                         </div>
-                        <div class="text-xs text-muted" style="min-width: 100px;"><?= ucfirst($task['category']) ?></div>
-                        <span class="badge badge-<?= $task['priority'] ?>" style="min-width: 70px; text-align: center;"><?= ucfirst($task['priority']) ?></span>
-                        <div style="min-width: 120px;">
-                            <?php if ($task['deadline']): ?>
-                                <?php $deadline = new DateTime($task['deadline']); $now = new DateTime(); $isOverdue = $deadline < $now && $task['status'] !== 'completed'; $isDueSoon = !$isOverdue && $deadline <= new DateTime('+3 days'); ?>
-                                <span class="text-xs <?= $isOverdue ? 'text-error' : ($isDueSoon ? 'text-warning' : 'text-muted') ?>"><?= $isOverdue ? '⚠️ ' : '' ?><?= formatDate($task['deadline'], 'M d, Y') ?></span>
-                            <?php else: ?><span class="text-xs text-muted">No deadline</span><?php endif; ?>
-                        </div>
-                        <div class="d-flex gap-2">
-                            <a href="index.php?page=task_detail&id=<?= $task['id'] ?>" class="btn btn-sm btn-icon btn-secondary" title="Details">👁️</a>
-                            <button class="btn btn-sm btn-icon btn-secondary" onclick="editTask(<?= $task['id'] ?>, '<?= h($task['title']) ?>', '<?= h($task['description'] ?? '') ?>', '<?= $task['status'] ?>', '<?= $task['priority'] ?>', '<?= $task['category'] ?>', '<?= $task['deadline'] ?>')" title="Edit">✏️</button>
-                            <form method="POST" onsubmit="return confirm('Are you sure you want to delete this task?')">
-                                <input type="hidden" name="action" value="delete">
-                                <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
-                                <button type="submit" class="btn btn-sm btn-icon btn-secondary" title="Delete">🗑️</button>
-                            </form>
-                        </div>
+                        <?php endforeach; ?>
                     </div>
-                    <?php endforeach; ?>
-                    <?php endforeach; ?>
-                <?php else: ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <div class="card">
+                <div class="card-body" style="padding: 0;">
                     <?php foreach ($tasks as $task): ?>
-                    <div class="task-item d-flex align-center gap-4 p-4" data-status="<?= $task['status'] ?>" data-priority="<?= $task['priority'] ?>" style="border-bottom: 1px solid var(--border-light);">
-                        <form method="POST" style="display: inline;">
-                            <input type="hidden" name="action" value="toggle">
-                            <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
-                            <input type="hidden" name="status" value="<?= $task['status'] ?>">
-                            <input type="checkbox" class="task-checkbox" 
-                                <?= $task['status'] === 'completed' ? 'checked' : '' ?>
-                                onchange="this.form.submit()"
-                                title="<?= $task['status'] === 'completed' ? 'Mark as pending' : 'Mark as completed' ?>">
-                        </form>
-                        
-                        <!-- Task Info -->
-                        <div class="flex-1">
-                            <div class="d-flex align-center gap-2">
-                                <span class="font-weight-500 <?= $task['status'] === 'completed' ? 'text-muted' : '' ?>" style="<?= $task['status'] === 'completed' ? 'text-decoration: line-through;' : '' ?>">
-                                    <?= h($task['title']) ?>
-                                </span>
-                                <?php if ($task['status'] === 'completed'): ?>
-                                <span class="badge badge-completed">Completed</span>
-                                <?php endif; ?>
-                            </div>
-                            <?php if ($task['description']): ?>
-                            <div class="text-xs text-muted mt-1 truncate"><?= h($task['description']) ?></div>
-                            <?php endif; ?>
+                    <div class="task-item d-flex align-center p-3" style="border-bottom: 1px solid var(--border-light); gap: 16px;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <span class="font-weight-500 <?= $task['status'] === 'completed' ? 'text-muted' : '' ?>" style="<?= $task['status'] === 'completed' ? 'text-decoration: line-through;' : '' ?>"><?= h($task['title']) ?></span>
                         </div>
-                        
-                        <!-- Category -->
-                        <div class="text-xs text-muted" style="min-width: 100px;">
-                            <?= ucfirst($task['category']) ?>
-                        </div>
-                        
-                        <!-- Priority -->
-                        <span class="badge badge-<?= $task['priority'] ?>" style="min-width: 70px; text-align: center;">
-                            <?= ucfirst($task['priority']) ?>
-                        </span>
-                        
-                        <!-- Deadline -->
-                        <div style="min-width: 120px;">
+                        <span class="badge badge-<?= str_replace('_', '-', $task['status']) ?>" style="width: 80px; text-align: center;"><?= ucfirst(str_replace('_', ' ', $task['status'])) ?></span>
+                        <div class="text-xs text-muted" style="width: 90px;"><?= ucfirst($task['category']) ?></div>
+                        <span class="badge badge-<?= $task['priority'] ?>" style="width: 70px; text-align: center;"><?= ucfirst($task['priority']) ?></span>
+                        <div class="text-xs" style="width: 100px;">
                             <?php if ($task['deadline']): ?>
-                                <?php 
-                                $deadline = new DateTime($task['deadline']);
-                                $now = new DateTime();
-                                $isOverdue = $deadline < $now && $task['status'] !== 'completed';
-                                $isDueSoon = !$isOverdue && $deadline <= new DateTime('+3 days');
-                                ?>
-                                <span class="text-xs <?= $isOverdue ? 'text-error' : ($isDueSoon ? 'text-warning' : 'text-muted') ?>">
-                                    <?= $isOverdue ? '⚠️ ' : '' ?>
-                                    <?= formatDate($task['deadline'], 'M d, Y') ?>
-                                </span>
-                            <?php else: ?>
-                                <span class="text-xs text-muted">No deadline</span>
-                            <?php endif; ?>
-                        </div>
-                        
-                        <!-- Actions -->
-                        <div class="d-flex gap-2">
-                            <a href="index.php?page=task_detail&id=<?= $task['id'] ?>" class="btn btn-sm btn-icon btn-secondary" title="Details">
-                                👁️
-                            </a>
-                            <button class="btn btn-sm btn-icon btn-secondary" onclick="editTask(<?= $task['id'] ?>, '<?= h($task['title']) ?>', '<?= h($task['description'] ?? '') ?>', '<?= $task['status'] ?>', '<?= $task['priority'] ?>', '<?= $task['category'] ?>', '<?= $task['deadline'] ?>')" title="Edit">
-                                ✏️
-                            </button>
-                            <form method="POST" onsubmit="return confirm('Are you sure you want to delete this task?')">
-                                <input type="hidden" name="action" value="delete">
-                                <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
-                                <button type="submit" class="btn btn-sm btn-icon btn-secondary" title="Delete">🗑️</button>
-                            </form>
+                                <?php $deadline = new DateTime($task['deadline']); $now = new DateTime(); $isOverdue = $deadline < $now && $task['status'] !== 'completed'; $isDueSoon = !$isOverdue && $deadline <= new DateTime('+3 days'); ?>
+                                <span class="<?= $isOverdue ? 'text-error' : ($isDueSoon ? 'text-warning' : 'text-muted') ?>"><?= $isOverdue ? '⚠️ ' : '' ?><?= formatDate($task['deadline'], 'M d, Y') ?></span>
+                            <?php else: ?><span class="text-muted">-</span><?php endif; ?>
                         </div>
                     </div>
                     <?php endforeach; ?>
-                <?php endif; ?>
-            <?php else: ?>
+                </div>
+            </div>
+        <?php endif; ?>
+    <?php else: ?>
+        <div class="card">
+            <div class="card-body">
                 <div class="empty-state">
                     <div class="empty-state-icon">✅</div>
                     <div class="empty-state-title">No tasks found</div>
@@ -477,9 +415,9 @@ foreach ($taskCounts as $row) {
                         <span>+</span> Buat Tugas
                     </button>
                 </div>
-            <?php endif; ?>
+            </div>
         </div>
-    </div>
+    <?php endif; ?>
 </div>
 
 <!-- Add Task Modal -->

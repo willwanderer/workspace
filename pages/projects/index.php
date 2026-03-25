@@ -472,6 +472,25 @@ if (isset($_POST['action']) && $_POST['action'] === 'toggle_task') {
     }
     exit;
 }
+
+// Handle delete task from project detail
+if (isset($_POST['action']) && $_POST['action'] === 'delete_task') {
+    $taskId = (int)$_POST['task_id'];
+    
+    $stmt = $db->prepare("DELETE FROM tasks WHERE id = ? AND user_id = ?");
+    $stmt->bind_param('ii', $taskId, $userId);
+    $stmt->execute();
+    
+    logActivity('deleted', 'task', $taskId, null, null);
+    setFlash('Tugas berhasil dihapus!');
+    
+    if (isset($_GET['id'])) {
+        echo '<script>window.location.href = "index.php?page=project_detail&id=' . (int)$_GET['id'] . '";</script>';
+    } else {
+        echo '<script>window.location.href = "index.php?page=projects";</script>';
+    }
+    exit;
+}
 ?>
 
 <!-- Project Files Modal -->

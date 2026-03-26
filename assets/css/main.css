@@ -284,25 +284,6 @@ h6 { font-size: 0.875rem; }
     padding-left: var(--space-5);
 }
 
-.nav-item.active {
-    background: rgba(255,255,255,0.15);
-    color: white;
-    border-left: 3px solid var(--primary);
-}
-    font-size: 0.95rem;
-}
-
-.nav-item:hover {
-    background: rgba(255,255,255,0.1);
-    color: var(--text-inverse);
-}
-
-.nav-item.active {
-    background: rgba(255,255,255,0.15);
-    color: var(--text-inverse);
-    border-left: 3px solid var(--primary);
-}
-
 .nav-icon {
     font-size: 1.25rem;
     width: 24px;
@@ -348,12 +329,15 @@ h6 { font-size: 0.875rem; }
     gap: var(--space-3);
 }
 
+/* ============================================
+   SIDEBAR TOGGLE (HAMBURGER BUTTON)
+   ============================================ */
 .sidebar-toggle {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     background: transparent;
     border: none;
     border-radius: var(--radius);
@@ -361,22 +345,86 @@ h6 { font-size: 0.875rem; }
     color: var(--text-primary);
     font-size: 1.25rem;
     transition: var(--transition);
+    padding: 0;
+    position: relative;
+    overflow: hidden;
+    z-index: 1000;
 }
 
 .sidebar-toggle:hover {
-    background: var(--bg-hover);
+    background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .sidebar-toggle:hover {
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .sidebar-toggle.active {
-    background: var(--bg-hover);
+    background: rgba(0, 0, 0, 0.05) !important;
 }
 
-.sidebar-toggle.active::before {
-    content: "✕";
+[data-theme="dark"] .sidebar-toggle.active {
+    background: rgba(255, 255, 255, 0.1) !important;
 }
 
-.sidebar-toggle span {
+/* Hamburger Icon - Three Lines */
+.hamburger {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 24px;
+    height: 24px;
+    position: relative;
+    z-index: 1001;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.hamburger-line {
     display: block;
+    width: 20px;
+    height: 2px;
+    background-color: #1e293b;
+    border-radius: 2px;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    z-index: 1002;
+}
+
+[data-theme="dark"] .hamburger-line {
+    background-color: #f1f5f9;
+}
+
+.hamburger-line:nth-child(1) {
+    top: 5px;
+}
+
+.hamburger-line:nth-child(2) {
+    top: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.hamburger-line:nth-child(3) {
+    bottom: 5px;
+}
+
+/* Hamburger Animation - When Active (Sidebar Open) */
+.sidebar-toggle.active .hamburger-line:nth-child(1) {
+    top: 50% !important;
+    transform: translateX(-50%) rotate(45deg) !important;
+}
+
+.sidebar-toggle.active .hamburger-line:nth-child(2) {
+    opacity: 0 !important;
+    transform: translateX(-50%) scaleX(0) !important;
+}
+
+.sidebar-toggle.active .hamburger-line:nth-child(3) {
+    bottom: 50% !important;
+    transform: translateX(-50%) rotate(-45deg) !important;
 }
 
 .header-title {
@@ -389,6 +437,7 @@ h6 { font-size: 0.875rem; }
 .header-search {
     position: relative;
     width: 320px;
+    z-index: 1000;
 }
 
 .header-search input {
@@ -508,6 +557,8 @@ h6 { font-size: 0.875rem; }
     display: flex;
     align-items: center;
     gap: var(--space-4);
+    z-index: 1000;
+    position: relative;
 }
 
 .header-btn {
@@ -523,6 +574,7 @@ h6 { font-size: 0.875rem; }
     color: var(--text-secondary);
     transition: var(--transition);
     position: relative;
+    z-index: 1001;
 }
 
 .header-btn:hover {
@@ -1973,34 +2025,6 @@ input[type="range"]::-moz-range-thumb {
     .sidebar-overlay.show {
         opacity: 1;
         visibility: visible;
-    }
-}
-    .sidebar {
-        transform: translateX(0);
-    }
-    
-    .sidebar-toggle {
-        display: flex;
-    }
-    
-    .main-content {
-        margin-left: var(--sidebar-width);
-    }
-    
-    .main-content.sidebar-hidden {
-        margin-left: 0;
-    }
-    
-    .header {
-        left: var(--sidebar-width);
-    }
-    
-    .header.sidebar-hidden {
-        left: 0;
-    }
-    
-    .sidebar-overlay {
-        display: none !important;
     }
 }
 

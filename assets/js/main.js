@@ -132,6 +132,7 @@ function initSidebar() {
     if (toggleBtn) {
         toggleBtn.addEventListener('click', function(e) {
             e.preventDefault();
+            e.stopPropagation();
             toggleSidebar();
         });
     }

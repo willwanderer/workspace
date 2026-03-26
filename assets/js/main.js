@@ -660,15 +660,14 @@ function initCharts() {
         new Chart(statusChart, {
             type: 'doughnut',
             data: {
-                labels: ['Pending', 'In Progress', 'Completed', 'Cancelled'],
+                labels: ['Pending', 'In Progress', 'Completed'],
                 datasets: [{
                     data: [
-                        statusChart.dataset.pending || 5,
-                        statusChart.dataset.inProgress || 3,
-                        statusChart.dataset.completed || 8,
-                        statusChart.dataset.cancelled || 1
+                        parseInt(statusChart.dataset.pending) || 0,
+                        parseInt(statusChart.dataset.inProgress) || 0,
+                        parseInt(statusChart.dataset.completed) || 0
                     ],
-                    backgroundColor: ['#6b7280', '#3b82f6', '#10b981', '#ef4444'],
+                    backgroundColor: ['#6b7280', '#3b82f6', '#10b981'],
                     borderWidth: 0
                 }]
             },
@@ -677,7 +676,44 @@ function initCharts() {
                 maintainAspectRatio: false,
                 plugins: {
                     legend: {
-                        position: 'bottom'
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 12,
+                            padding: 10
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Project Status Chart
+    const projectStatusChart = document.getElementById('projectStatusChart');
+    if (projectStatusChart && typeof Chart !== 'undefined') {
+        new Chart(projectStatusChart, {
+            type: 'doughnut',
+            data: {
+                labels: ['Planning', 'Active', 'Completed'],
+                datasets: [{
+                    data: [
+                        parseInt(projectStatusChart.dataset.planning) || 0,
+                        parseInt(projectStatusChart.dataset.active) || 0,
+                        parseInt(projectStatusChart.dataset.completed) || 0
+                    ],
+                    backgroundColor: ['#f59e0b', '#3b82f6', '#10b981'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 12,
+                            padding: 10
+                        }
                     }
                 }
             }

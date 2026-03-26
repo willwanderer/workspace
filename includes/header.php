@@ -4,6 +4,11 @@
  * WorkSpace Pro
  */
 
+// Start output buffering to prevent "headers already sent" errors
+if (ob_get_level() === 0) {
+    ob_start();
+}
+
 $currentPage = $_GET['page'] ?? 'dashboard';
 $pageTitles = [
     'dashboard' => 'Beranda',
@@ -21,6 +26,17 @@ $pageTitle = $pageTitles[$currentPage] ?? 'Beranda';
 // Get user data
 $user = getUser();
 $unreadNotifications = getUnreadNotifications(getUserId());
+
+// Get quick links for right sidebar (limited to 13)
+$quickLinks = [];
+if (isLoggedIn()) {
+    $db = getDB();
+    $userId = getUserId();
+    $stmt = $db->prepare("SELECT id, title, url, favicon FROM quick_links WHERE user_id = ? ORDER BY is_pinned DESC, is_favorite DESC, click_count DESC LIMIT 13");
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $quickLinks = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+}
 
 // Get initials for avatar
 $initials = '';
@@ -111,6 +127,11 @@ if ($user && !empty($user['full_name'])) {
             <span>🌙</span>
         </button>
         
+        <!-- Right Sidebar Toggle -->
+        <button class="right-sidebar-toggle" id="rightSidebarToggle" type="button" aria-label="Toggle Right Sidebar">
+            <span>📋</span>
+        </button>
+        
         <!-- User Menu -->
         <div class="dropdown">
             <div class="user-menu dropdown-trigger">
@@ -136,3 +157,70 @@ if ($user && !empty($user['full_name'])) {
         </div>
     </div>
 </header>
+
+<!-- Right Sidebar (Hidden by Default) -->
+<div class="right-sidebar-backdrop" id="rightSidebarBackdrop"></div>
+<div class="right-sidebar" id="rightSidebar">
+    <div class="right-sidebar-header">
+        <h3 class="right-sidebar-title">Tautan Cepat</h3>
+        <button class="right-sidebar-close" id="rightSidebarClose" type="button" aria-label="Close Sidebar">
+            ✕
+        </button>
+    </div>
+    <div class="right-sidebar-body">
+        <?php if (count($quickLinks) > 0): ?>
+        <!-- Quick Links Icons Grid -->
+        <div class="quick-links-grid">
+            <?php 
+            $linkIndex = 0;
+            foreach ($quickLinks as $link): 
+                $linkIndex++;
+                // Get favicon URL
+                $faviconUrl = trim($link['favicon'] ?? '');
+                $isExternal = !empty($faviconUrl) && (strpos($faviconUrl, 'http') === 0 || strpos($faviconUrl, '//') === 0);
+                $domain = parse_url($link['url'], PHP_URL_HOST);
+            ?>
+            <a href="<?= h($link['url']) ?>" target="_blank" class="quick-link-icon" data-tooltip="<?= h($link['title']) ?>">
+                <?php if ($isExternal): ?>
+                <img src="<?= h($faviconUrl) ?>" alt="<?= h($link['title']) ?>" style="width: 24px; height: 24px; object-fit: contain;" 
+                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <span style="display: none; font-size: 1.25rem;">🔗</span>
+                <?php elseif (!empty($faviconUrl)): ?>
+                <?php 
+                $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+                $host = $_SERVER['HTTP_HOST'];
+                $iconPath = $protocol . $host . '/' . ltrim($faviconUrl, '/');
+                ?>
+                <img src="<?= h($iconPath) ?>" alt="<?= h($link['title']) ?>" style="width: 24px; height: 24px; object-fit: contain;"
+                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <span style="display: none; font-size: 1.25rem;">🔗</span>
+                <?php else: ?>
+                <img src="https://www.google.com/s2/favicons?domain=<?= h($domain) ?>&sz=64" alt="<?= h($link['title']) ?>" style="width: 24px; height: 24px;"
+                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <span style="display: none; font-size: 1.25rem;">🔗</span>
+                <?php endif; ?>
+            </a>
+            <?php endforeach; ?>
+            
+            <!-- View All Link -->
+            <a href="index.php?page=links" class="quick-link-icon quick-link-view-all" data-tooltip="Lihat Semua">
+                <span style="font-size: 1.25rem;">→</span>
+            </a>
+        </div>
+        
+        <div class="quick-links-divider"></div>
+        
+        <p style="color: var(--text-muted); font-size: 0.75rem; text-align: center; margin-top: var(--space-3);">
+            Klik untuk membuka tautan
+        </p>
+        <?php else: ?>
+        <p style="color: var(--text-muted); text-align: center; margin-top: 2rem;">
+            Belum ada tautan cepat.<br>
+            <a href="index.php?page=links" style="color: var(--primary);">Tambah tautan</a>
+        </p>
+        <?php endif; ?>
+    </div>
+    <div class="right-sidebar-footer">
+        <!-- Optional footer content -->
+    </div>
+</div>

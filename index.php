@@ -4,6 +4,9 @@
  * Dashboard Manajemen Tugas dan Tempat Kerja
  */
 
+// Start output buffering to prevent "headers already sent" errors
+ob_start();
+
 // Start session and load configuration
 session_start();
 require_once __DIR__ . '/config/database.php';

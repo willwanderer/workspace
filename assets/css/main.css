@@ -1693,6 +1693,213 @@ input[type="range"]::-moz-range-thumb {
 .animate-slide-in { animation: slideIn 0.3s ease; }
 
 /* ============================================
+   RIGHT SIDEBAR (HIDDEN BY DEFAULT)
+   ============================================ */
+.right-sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 50%;
+    max-width: 600px;
+    min-width: 320px;
+    background: var(--bg-surface);
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+    z-index: 10001;
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+}
+
+.right-sidebar.active {
+    transform: translateX(0);
+}
+
+.right-sidebar-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 10000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.right-sidebar-backdrop.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.right-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-surface);
+}
+
+.right-sidebar-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.right-sidebar-close {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    border-radius: var(--radius);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    transition: var(--transition);
+    font-size: 1.25rem;
+}
+
+.right-sidebar-close:hover {
+    background: var(--bg-body);
+    color: var(--text-primary);
+}
+
+.right-sidebar-body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: var(--space-5);
+}
+
+.right-sidebar-footer {
+    padding: var(--space-4) var(--space-5);
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-surface);
+}
+
+/* Quick Links Grid in Right Sidebar */
+.quick-links-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+    overflow: visible;
+}
+
+.quick-link-icon {
+    width: 100%;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-body);
+    border-radius: var(--radius);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+}
+
+.quick-link-icon:hover {
+    background: var(--primary-light);
+    border-color: var(--primary);
+    transform: scale(1.05);
+}
+
+.quick-link-icon img {
+    max-width: 80%;
+    max-height: 80%;
+    object-fit: contain;
+}
+
+.quick-link-view-all {
+    background: var(--primary-light);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.quick-link-view-all:hover {
+    background: var(--primary);
+    color: white;
+}
+
+.quick-links-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: var(--space-4) 0;
+}
+
+/* Custom Tooltip for Quick Links */
+.quick-links-grid .quick-link-icon {
+    position: relative;
+}
+
+.quick-links-grid .quick-link-icon::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-sidebar);
+    color: var(--text-inverse);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    z-index: 1000;
+    pointer-events: none;
+    margin-top: var(--space-2);
+    box-shadow: var(--shadow-md);
+}
+
+.quick-links-grid .quick-link-icon:hover::after {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Right Sidebar Toggle Button */
+.right-sidebar-toggle {
+    width: 40px;
+    height: 40px;
+    border: none;
+    background: transparent;
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: var(--transition);
+    font-size: 1.25rem;
+}
+
+.right-sidebar-toggle:hover {
+    background: var(--bg-body);
+    color: var(--text-primary);
+}
+
+/* Responsive Right Sidebar */
+@media (max-width: 767px) {
+    .right-sidebar {
+        width: 85%;
+        max-width: 100%;
+        min-width: auto;
+    }
+    
+    .right-sidebar-toggle {
+        display: flex;
+    }
+}
+
+/* ============================================
    RESPONSIVE BREAKPOINTS
    ============================================ */
 

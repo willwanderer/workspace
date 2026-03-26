@@ -18,7 +18,49 @@ document.addEventListener('DOMContentLoaded', function() {
     initThemeToggle();
     initDragAndDrop();
     initSwalConfirm();
+    initRightSidebar();
 });
+
+/* ============================================
+   RIGHT SIDEBAR
+   ============================================ */
+function initRightSidebar() {
+    const rightSidebar = document.getElementById('rightSidebar');
+    const rightSidebarBackdrop = document.getElementById('rightSidebarBackdrop');
+    const rightSidebarToggle = document.getElementById('rightSidebarToggle');
+    const rightSidebarClose = document.getElementById('rightSidebarClose');
+    
+    function openRightSidebar() {
+        if (rightSidebar) rightSidebar.classList.add('active');
+        if (rightSidebarBackdrop) rightSidebarBackdrop.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+    
+    function closeRightSidebar() {
+        if (rightSidebar) rightSidebar.classList.remove('active');
+        if (rightSidebarBackdrop) rightSidebarBackdrop.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+    
+    if (rightSidebarToggle) {
+        rightSidebarToggle.addEventListener('click', openRightSidebar);
+    }
+    
+    if (rightSidebarClose) {
+        rightSidebarClose.addEventListener('click', closeRightSidebar);
+    }
+    
+    if (rightSidebarBackdrop) {
+        rightSidebarBackdrop.addEventListener('click', closeRightSidebar);
+    }
+    
+    // Close sidebar with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && rightSidebar && rightSidebar.classList.contains('active')) {
+            closeRightSidebar();
+        }
+    });
+}
 
 /* ============================================
    SWEETALERT CONFIRM HELPERS
@@ -91,6 +133,7 @@ function swalError(title, text) {
     ============================================ */
 function toggleSidebar() {
     const sidebar = document.querySelector('.sidebar');
+    const header = document.querySelector('.header');
     const mainContent = document.querySelector('.main-content');
     const toggleBtn = document.getElementById('sidebarToggleBtn');
     const overlay = document.getElementById('sidebarOverlay');
@@ -101,6 +144,11 @@ function toggleSidebar() {
         
         if (mainContent) {
             mainContent.classList.toggle('sidebar-hidden', isHidden);
+        }
+        
+        // Also toggle header to match main content
+        if (header) {
+            header.classList.toggle('sidebar-hidden', isHidden);
         }
         
         // Toggle hamburger animation and icon
@@ -117,15 +165,29 @@ function toggleSidebar() {
 
 function initSidebar() {
     const sidebar = document.querySelector('.sidebar');
+    const header = document.querySelector('.header');
     const mainContent = document.querySelector('.main-content');
     const toggleBtn = document.getElementById('sidebarToggleBtn');
     const overlay = document.getElementById('sidebarOverlay');
     
-    // Load saved state
+    // Check if we're on mobile
+    const isMobile = window.innerWidth <= 768;
+    
+    // Load saved state or auto-collapse on mobile
     const savedState = localStorage.getItem('sidebarHidden');
-    if (savedState === 'true' && sidebar) {
+    
+    if (isMobile) {
+        // On mobile, always hide sidebar and adjust header
+        if (sidebar) sidebar.classList.add('hidden');
+        if (mainContent) mainContent.classList.add('sidebar-hidden');
+        if (header) header.classList.add('sidebar-hidden');
+        if (toggleBtn) toggleBtn.classList.add('active');
+        localStorage.setItem('sidebarHidden', 'true');
+    } else if (savedState === 'true' && sidebar) {
+        // On desktop, use saved state
         sidebar.classList.add('hidden');
         if (mainContent) mainContent.classList.add('sidebar-hidden');
+        if (header) header.classList.add('sidebar-hidden');
         if (toggleBtn) toggleBtn.classList.add('active');
     }
     
@@ -145,18 +207,41 @@ function initSidebar() {
     }
     
     // Auto-collapse sidebar on mobile when nav item clicked
-    if (window.innerWidth <= 768) {
+    if (isMobile) {
         const navItems = document.querySelectorAll('.nav-item');
         navItems.forEach(item => {
             item.addEventListener('click', () => {
                 if (sidebar) sidebar.classList.add('hidden');
                 if (mainContent) mainContent.classList.add('sidebar-hidden');
+                if (header) header.classList.add('sidebar-hidden');
                 if (toggleBtn) toggleBtn.classList.remove('active');
                 if (overlay) overlay.classList.remove('show');
                 localStorage.setItem('sidebarHidden', 'true');
             });
         });
     }
+    
+    // Handle window resize
+    window.addEventListener('resize', debounce(function() {
+        const nowMobile = window.innerWidth <= 768;
+        
+        if (nowMobile && !isMobile) {
+            // Just became mobile - hide sidebar
+            if (sidebar) sidebar.classList.add('hidden');
+            if (mainContent) mainContent.classList.add('sidebar-hidden');
+            if (header) header.classList.add('sidebar-hidden');
+            if (toggleBtn) toggleBtn.classList.add('active');
+        } else if (!nowMobile && isMobile) {
+            // Just became desktop - show sidebar
+            const currentSavedState = localStorage.getItem('sidebarHidden');
+            if (currentSavedState !== 'true') {
+                if (sidebar) sidebar.classList.remove('hidden');
+                if (mainContent) mainContent.classList.remove('sidebar-hidden');
+                if (header) header.classList.remove('sidebar-hidden');
+                if (toggleBtn) toggleBtn.classList.remove('active');
+            }
+        }
+    }, 100));
 }
 
 /* ============================================

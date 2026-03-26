@@ -333,11 +333,32 @@ function countUnreadNotifications($userId) {
 }
 
 /**
- * Favicon fetcher
+ * Favicon fetcher with multiple fallback sources
  */
 function getFavicon($url) {
     $domain = parse_url($url, PHP_URL_HOST);
-    return "https://www.google.com/s2/favicons?domain={$domain}&sz=64";
+    if (!$domain) return '';
+    
+    // Try Google Favicon API first (most reliable)
+    $googleUrl = "https://www.google.com/s2/favicons?domain={$domain}&sz=64";
+    
+    // Return Google favicon as primary source
+    return $googleUrl;
+}
+
+/**
+ * Get favicon from multiple sources with fallback
+ */
+function getFaviconWithFallback($url) {
+    $domain = parse_url($url, PHP_URL_HOST);
+    if (!$domain) return '';
+    
+    return [
+        'google' => "https://www.google.com/s2/favicons?domain={$domain}&sz=64",
+        'favicon_im' => "https://favicon.im/{$domain}",
+        'direct' => "https://{$domain}/favicon.ico",
+        'duckduckgo' => "https://icons.duckduckgo.com/ip3/{$domain}.ico"
+    ];
 }
 
 /**

@@ -79,6 +79,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $stmt->execute();
         
         logActivity('completed', 'task', $taskId, null, $newStatus);
+    } elseif ($action === 'change_status') {
+        $taskId = (int)$_POST['task_id'];
+        $newStatus = sanitize($_POST['status'] ?? 'pending');
+        $note = sanitize($_POST['note'] ?? ' ');
+        
+        // Get current status
+        $stmt = $db->prepare("SELECT status FROM tasks WHERE id = ? AND user_id = ?");
+        $stmt->bind_param('ii', $taskId, $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $oldTask = $result->fetch_assoc();
+        $oldStatus = $oldTask['status'] ?? 'pending';
+        
+        if ($newStatus !== $oldStatus) {
+            $completedAt = $newStatus === 'completed' ? date('Y-m-d H:i:s') : null;
+            
+            $stmt = $db->prepare("UPDATE tasks SET status = ?, completed_at = ? WHERE id = ? AND user_id = ?");
+            $stmt->bind_param('ssii', $newStatus, $completedAt, $taskId, $userId);
+            $stmt->execute();
+            
+            // Record status history
+            $statusLabels = [
+                'pending' => 'Ditunda',
+                'in_progress' => 'Sedang Dikerjakan',
+                'completed' => 'Selesai',
+                'cancelled' => 'Dibatalkan'
+            ];
+            $oldStatusLabel = $statusLabels[$oldStatus] ?? $oldStatus;
+            $newStatusLabel = $statusLabels[$newStatus] ?? $newStatus;
+            
+            $tableCheck = $db->query("SHOW TABLES LIKE 'status_history'");
+            if ($tableCheck && $tableCheck->num_rows > 0) {
+                $note = "Status diubah dari '$oldStatusLabel' menjadi '$newStatusLabel'";
+                $stmt = $db->prepare("INSERT INTO status_history (entity_type, entity_id, old_status, new_status, user_id, note) VALUES ('task', ?, ?, ?, ?, ?)");
+                $stmt->bind_param('issss', $taskId, $oldStatus, $newStatus, $userId, $note);
+                $stmt->execute();
+            }
+            
+            logActivity('updated', 'task', $taskId, null, $newStatus);
+            setFlash('Status tugas diperbarui ke: ' . $newStatusLabel);
+        }
     }
     
     echo '<script>window.location.href = "index.php?page=tasks";</script>';
@@ -338,6 +379,7 @@ foreach ($taskCounts as $row) {
                             <div class="d-flex gap-1">
                                 <a href="index.php?page=task_detail&id=<?= $task['id'] ?>" class="btn btn-sm btn-icon btn-secondary" title="Details">👁️</a>
                                 <button class="btn btn-sm btn-icon btn-secondary" onclick="editTask(<?= $task['id'] ?>, '<?= h($task['title']) ?>', '<?= h($task['description'] ?? '') ?>', '<?= $task['status'] ?>', '<?= $task['priority'] ?>', '<?= $task['category'] ?>', '<?= $task['deadline'] ?>')" title="Edit">✏️</button>
+                                <button type="button" class="btn btn-sm btn-icon btn-secondary" title="Ubah Status" onclick="openTaskStatusModal(<?= $task['id'] ?>, '<?= h($task['title']) ?>', '<?= $task['status'] ?>')">⚙️</button>
                             </div>
                         </div>
                         <?php endforeach; ?>
@@ -369,6 +411,7 @@ foreach ($taskCounts as $row) {
                             <div class="d-flex gap-1">
                                 <a href="index.php?page=task_detail&id=<?= $task['id'] ?>" class="btn btn-sm btn-icon btn-secondary" title="Details">👁️</a>
                                 <button class="btn btn-sm btn-icon btn-secondary" onclick="editTask(<?= $task['id'] ?>, '<?= h($task['title']) ?>', '<?= h($task['description'] ?? '') ?>', '<?= $task['status'] ?>', '<?= $task['priority'] ?>', '<?= $task['category'] ?>', '<?= $task['deadline'] ?>')" title="Edit">✏️</button>
+                                <button type="button" class="btn btn-sm btn-icon btn-secondary" title="Ubah Status" onclick="openTaskStatusModal(<?= $task['id'] ?>, '<?= h($task['title']) ?>', '<?= $task['status'] ?>')">⚙️</button>
                             </div>
                         </div>
                         <?php endforeach; ?>
@@ -920,8 +963,83 @@ function uploadTaskFile(file) {
 }
 </script>
 
+<!-- Task Status Change Modal -->
+<div id="taskStatusModal" class="modal">
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Ubah Status Tugas</h3>
+            <button class="modal-close" onclick="closeModal('taskStatusModal')">✕</button>
+        </div>
+        <form method="POST" action="index.php?page=tasks">
+            <div class="modal-body">
+                <input type="hidden" name="action" value="change_status">
+                <input type="hidden" name="task_id" id="task_status_task_id">
+                
+                <div class="form-group">
+                    <label class="form-label">Tugas</label>
+                    <div id="task_status_title" class="text-sm font-weight-500" style="padding: 8px; background: var(--bg-secondary); border-radius: 4px;"></div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Status Baru</label>
+                    <select name="status" id="task_status_select" class="form-control" required>
+                        <option value="pending">⏳ Ditunda</option>
+                        <option value="in_progress">🔄 Sedang Dikerjakan</option>
+                        <option value="completed">✓ Selesai</option>
+                        <option value="cancelled">❌ Dibatalkan</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Catatan (Opsional)</label>
+                    <textarea name="note" class="form-control" rows="3" placeholder="Tambahkan catatan..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('taskStatusModal')">Batal</button>
+                <button type="submit" class="btn btn-primary">Simpan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openTaskStatusModal(taskId, taskTitle, currentStatus) {
+    document.getElementById('task_status_task_id').value = taskId;
+    document.getElementById('task_status_title').textContent = taskTitle;
+    document.getElementById('task_status_select').value = currentStatus;
+    openModal('taskStatusModal');
+}
+</script>
+
 <style>
     .text-error { color: var(--error); }
     .text-warning { color: var(--warning); }
     .text-muted { color: var(--text-muted); }
+    .dropdown-item:hover { background: var(--bg-hover) !important; }
 </style>
+
+<script>
+// Toggle task status dropdown
+function toggleTaskStatusDropdown(taskId) {
+    var dropdown = document.getElementById('taskStatusDropdown_' + taskId);
+    var isVisible = dropdown.style.display === 'block';
+    
+    // Hide all other dropdowns first
+    document.querySelectorAll('.dropdown-menu').forEach(function(el) {
+        el.style.display = 'none';
+    });
+    
+    // Toggle current dropdown
+    dropdown.style.display = isVisible ? 'none' : 'block';
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.dropdown')) {
+        document.querySelectorAll('.dropdown-menu').forEach(function(el) {
+            el.style.display = 'none';
+        });
+    }
+});
+</script>

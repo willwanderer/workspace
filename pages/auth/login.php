@@ -44,11 +44,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <?php endif; ?>
             
-            <div class="demo-credentials">
+            <!-- <div class="demo-credentials">
                 <strong>Akun Demo:</strong>
                 <p>Email: <code>admin@workspace.local</code></p>
                 <p>Kata Sandi: <code>admin123</code></p>
-            </div>
+            </div> -->
             
             <form method="POST" class="auth-form">
                 <div class="form-group">

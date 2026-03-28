@@ -161,16 +161,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exit;
 }
 
-// Handle toggle project status
+// Handle toggle project status with status history
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'toggle') {
-    $newStatus = $project['status'] === 'completed' ? 'active' : 'completed';
+    $oldStatus = $project['status'];
+    $newStatus = $_POST['status'] ?? ($oldStatus === 'completed' ? 'active' : ($oldStatus === 'active' ? 'completed' : 'active'));
     
     $stmt = $db->prepare("UPDATE projects SET status = ? WHERE id = ? AND owner_id = ?");
     $stmt->bind_param('sii', $newStatus, $projectId, $userId);
     $stmt->execute();
     
+    // Record status history
+    $statusLabels = [
+        'planning' => 'Perencanaan',
+        'active' => 'Aktif',
+        'on_hold' => 'Ditunda',
+        'completed' => 'Selesai',
+        'cancelled' => 'Dibatalkan'
+    ];
+    
+    $oldStatusLabel = $statusLabels[$oldStatus] ?? $oldStatus;
+    $newStatusLabel = $statusLabels[$newStatus] ?? $newStatus;
+    
+    $tableCheck = $db->query("SHOW TABLES LIKE 'status_history'");
+    if ($tableCheck && $tableCheck->num_rows > 0) {
+        $stmt = $db->prepare("INSERT INTO status_history (entity_type, entity_id, old_status, new_status, user_id, note) VALUES ('project', ?, ?, ?, ?, ?)");
+        $note = "Status diubah dari '$oldStatusLabel' menjadi '$newStatusLabel'";
+        $stmt->bind_param('issss', $projectId, $oldStatus, $newStatus, $userId, $note);
+        $stmt->execute();
+    }
+    
     logActivity('updated', 'project', $projectId, null, $newStatus);
-    setFlash('Status proyek diperbarui!');
+    setFlash('Status proyek diperbarui ke: ' . $newStatusLabel);
+    
+    echo '<script>window.location.href = "index.php?page=project_detail&id=' . $projectId . '";</script>';
+    exit;
+}
+
+// Handle change project status (specific status selection)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'change_status') {
+    $oldStatus = $project['status'];
+    $newStatus = $_POST['status'] ?? $oldStatus;
+    $note = $_POST['note'] ?? '';
+    
+    if ($newStatus !== $oldStatus) {
+        $stmt = $db->prepare("UPDATE projects SET status = ? WHERE id = ? AND owner_id = ?");
+        $stmt->bind_param('sii', $newStatus, $projectId, $userId);
+        $stmt->execute();
+        
+        // Record status history
+        $statusLabels = [
+            'planning' => 'Perencanaan',
+            'active' => 'Aktif',
+            'on_hold' => 'Ditunda',
+            'completed' => 'Selesai',
+            'cancelled' => 'Dibatalkan'
+        ];
+        
+        $oldStatusLabel = $statusLabels[$oldStatus] ?? $oldStatus;
+        $newStatusLabel = $statusLabels[$newStatus] ?? $newStatus;
+        
+        $tableCheck = $db->query("SHOW TABLES LIKE 'status_history'");
+        if ($tableCheck && $tableCheck->num_rows > 0) {
+            $noteText = "Status diubah dari '$oldStatusLabel' menjadi '$newStatusLabel'";
+            if (!empty($note)) {
+                $noteText .= ". Catatan: " . $note;
+            }
+            $stmt = $db->prepare("INSERT INTO status_history (entity_type, entity_id, old_status, new_status, user_id, note) VALUES ('project', ?, ?, ?, ?, ?)");
+            $stmt->bind_param('issss', $projectId, $oldStatus, $newStatus, $userId, $noteText);
+            $stmt->execute();
+        }
+        
+        logActivity('updated', 'project', $projectId, null, $newStatus);
+        setFlash('Status proyek diperbarui ke: ' . $newStatusLabel);
+    }
     
     echo '<script>window.location.href = "index.php?page=project_detail&id=' . $projectId . '";</script>';
     exit;
@@ -695,12 +758,9 @@ $currentFolderId = $_GET['folder_id'] ?? 'main';
                     </div>
                     <?php endif; ?>
                     <div class="d-flex gap-2 mt-4">
-                        <form method="POST" class="flex-1">
-                            <input type="hidden" name="action" value="toggle">
-                            <button type="submit" class="btn btn-<?= $project['status'] === 'completed' ? 'warning' : 'success' ?> w-100">
-                                <?= $project['status'] === 'completed' ? '↩️ Aktifkan' : '✓ Tandai Selesai' ?>
-                            </button>
-                        </form>
+                        <button type="button" class="btn btn-<?= $project['status'] === 'completed' ? 'warning' : 'success' ?> w-100" onclick="openProjectDetailStatusModal()">
+                            <?= $project['status'] === 'completed' ? '↩️ ' : '⚙️ ' ?>Ubah Status
+                        </button>
                         <form method="POST" class="flex-1" onsubmit="event.preventDefault(); swalConfirm('Hapus proyek ini?', 'Tindakan ini tidak dapat dibatalkan.', 'warning').then(result => { if (result.isConfirmed) this.submit(); })">
                             <input type="hidden" name="action" value="delete">
                             <button type="submit" class="btn btn-danger w-100">🗑️ Hapus</button>
@@ -1290,4 +1350,54 @@ function handleProjectFolderDrop(event, folderId, folderKey) {
         });
     }
 }
+
+// Open project detail status modal
+function openProjectDetailStatusModal() {
+    document.getElementById('projectDetailStatusSelect').value = '<?= $project['status'] ?>';
+    openModal('projectDetailStatusModal');
+}
 </script>
+
+<!-- Project Detail Status Modal -->
+<div id="projectDetailStatusModal" class="modal">
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Ubah Status Proyek</h3>
+            <button class="modal-close" onclick="closeModal('projectDetailStatusModal')">✕</button>
+        </div>
+        <form method="POST" action="index.php?page=project_detail&id=<?= $projectId ?>">
+            <div class="modal-body">
+                <input type="hidden" name="action" value="change_status">
+                
+                <div class="form-group">
+                    <label class="form-label">Proyek</label>
+                    <div class="text-sm font-weight-500" style="padding: 8px; background: var(--bg-secondary); border-radius: 4px;"><?= h($project['name']) ?></div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Status Baru</label>
+                    <select name="status" id="projectDetailStatusSelect" class="form-control" required>
+                        <option value="planning">📋 Perencanaan</option>
+                        <option value="active">🚀 Aktif</option>
+                        <option value="on_hold">⏸️ Ditunda</option>
+                        <option value="completed">✓ Selesai</option>
+                        <option value="cancelled">❌ Dibatalkan</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Catatan (Opsional)</label>
+                    <textarea name="note" class="form-control" rows="3" placeholder="Tambahkan catatan..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('projectDetailStatusModal')">Batal</button>
+                <button type="submit" class="btn btn-primary">Simpan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    .dropdown-item:hover { background: var(--bg-hover) !important; }
+</style>

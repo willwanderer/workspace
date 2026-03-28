@@ -87,6 +87,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         setFlash('Project deleted successfully!');
         echo '<script>window.location.href = "index.php?page=projects";</script>';
         exit;
+    } elseif ($action === 'change_status') {
+        $projectId = (int)$_POST['project_id'];
+        $newStatus = sanitize($_POST['status'] ?? 'planning');
+        
+        // Get current status
+        $stmt = $db->prepare("SELECT status FROM projects WHERE id = ? AND owner_id = ?");
+        $stmt->bind_param('ii', $projectId, $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $oldProject = $result->fetch_assoc();
+        $oldStatus = $oldProject['status'] ?? 'planning';
+        
+        if ($newStatus !== $oldStatus) {
+            $stmt = $db->prepare("UPDATE projects SET status = ? WHERE id = ? AND owner_id = ?");
+            $stmt->bind_param('sii', $newStatus, $projectId, $userId);
+            $stmt->execute();
+            
+            // Record status history
+            $statusLabels = [
+                'planning' => 'Perencanaan',
+                'active' => 'Aktif',
+                'on_hold' => 'Ditunda',
+                'completed' => 'Selesai',
+                'cancelled' => 'Dibatalkan'
+            ];
+            $oldStatusLabel = $statusLabels[$oldStatus] ?? $oldStatus;
+            $newStatusLabel = $statusLabels[$newStatus] ?? $newStatus;
+            
+            $tableCheck = $db->query("SHOW TABLES LIKE 'status_history'");
+            if ($tableCheck && $tableCheck->num_rows > 0) {
+                $note = "Status diubah dari '$oldStatusLabel' menjadi '$newStatusLabel'";
+                $stmt = $db->prepare("INSERT INTO status_history (entity_type, entity_id, old_status, new_status, user_id, note) VALUES ('project', ?, ?, ?, ?, ?)");
+                $stmt->bind_param('isssi', $projectId, $oldStatus, $newStatus, $userId, $note);
+                $stmt->execute();
+            }
+            
+            logActivity('updated', 'project', $projectId, null, $newStatus);
+            setFlash('Status proyek diperbarui ke: ' . $newStatusLabel);
+        }
     }
 }
 
@@ -221,6 +260,31 @@ foreach ($projectCounts as $row) {
                     <button class="btn btn-sm btn-secondary" onclick="editProject(<?= $project['id'] ?>, '<?= h($project['name']) ?>', '<?= h($project['description'] ?? '') ?>', '<?= $project['status'] ?>', <?= $project['progress_percentage'] ?>, '<?= $project['start_date'] ?>', '<?= $project['deadline'] ?>')">
                         ✏️ Edit
                     </button>
+                    <div class="dropdown" style="position: relative;">
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="toggleProjectStatusDropdown(<?= $project['id'] ?>)" title="Ubah Status">⚙️</button>
+                        <div id="projectStatusDropdown_<?= $project['id'] ?>" class="dropdown-menu" style="display: none; position: absolute; right: 0; top: 100%; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius); box-shadow: var(--shadow-lg); min-width: 180px; z-index: 1000;">
+                            <div style="padding: var(--space-2); border-bottom: 1px solid var(--border-light); font-weight: 500; font-size: 0.75rem; color: var(--text-muted);">Ubah Status</div>
+                            <form method="POST" style="margin: 0;">
+                                <input type="hidden" name="action" value="change_status">
+                                <input type="hidden" name="project_id" value="<?= $project['id'] ?>">
+                                <button type="submit" name="status" value="planning" class="dropdown-item" style="width: 100%; text-align: left; padding: var(--space-2) var(--space-3); border: none; background: none; cursor: pointer; <?= $project['status'] === 'planning' ? 'background: var(--primary-light);' : '' ?>">
+                                    📋 Perencanaan
+                                </button>
+                                <button type="submit" name="status" value="active" class="dropdown-item" style="width: 100%; text-align: left; padding: var(--space-2) var(--space-3); border: none; background: none; cursor: pointer; <?= $project['status'] === 'active' ? 'background: var(--primary-light);' : '' ?>">
+                                    🚀 Aktif
+                                </button>
+                                <button type="submit" name="status" value="on_hold" class="dropdown-item" style="width: 100%; text-align: left; padding: var(--space-2) var(--space-3); border: none; background: none; cursor: pointer; <?= $project['status'] === 'on_hold' ? 'background: var(--primary-light);' : '' ?>">
+                                    ⏸️ Ditunda
+                                </button>
+                                <button type="submit" name="status" value="completed" class="dropdown-item" style="width: 100%; text-align: left; padding: var(--space-2) var(--space-3); border: none; background: none; cursor: pointer; <?= $project['status'] === 'completed' ? 'background: var(--primary-light);' : '' ?>">
+                                    ✓ Selesai
+                                </button>
+                                <button type="submit" name="status" value="cancelled" class="dropdown-item" style="width: 100%; text-align: left; padding: var(--space-2) var(--space-3); border: none; background: none; cursor: pointer; <?= $project['status'] === 'cancelled' ? 'background: var(--primary-light);' : '' ?>">
+                                    ❌ Dibatalkan
+                                </button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
                 <form method="POST" onsubmit="event.preventDefault(); swalConfirm('Hapus proyek ini?', 'Tindakan ini tidak dapat dibatalkan.', 'warning').then(result => { if (result.isConfirmed) this.submit(); })">
                     <input type="hidden" name="action" value="delete">
@@ -683,4 +747,31 @@ function uploadProjectFile(file) {
         alert('Failed to upload file');
     });
 }
+
+// Toggle project status dropdown
+function toggleProjectStatusDropdown(projectId) {
+    var dropdown = document.getElementById('projectStatusDropdown_' + projectId);
+    var isVisible = dropdown.style.display === 'block';
+    
+    // Hide all other dropdowns first
+    document.querySelectorAll('.dropdown-menu').forEach(function(el) {
+        el.style.display = 'none';
+    });
+    
+    // Toggle current dropdown
+    dropdown.style.display = isVisible ? 'none' : 'block';
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.dropdown')) {
+        document.querySelectorAll('.dropdown-menu').forEach(function(el) {
+            el.style.display = 'none';
+        });
+    }
+});
 </script>
+
+<style>
+    .dropdown-item:hover { background: var(--bg-hover) !important; }
+</style>

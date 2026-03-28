@@ -165,17 +165,87 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exit;
 }
 
-// Handle toggle status
+// Handle toggle status with status history
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'toggle') {
-    $newStatus = $task['status'] === 'completed' ? 'pending' : 'completed';
+    $oldStatus = $task['status'];
+    $newStatus = $_POST['status'] ?? ($oldStatus === 'completed' ? 'pending' : 'completed');
+    
+    // Determine the actual new status based on the old one
+    if ($newStatus === 'toggle') {
+        $newStatus = $oldStatus === 'completed' ? 'pending' : 'completed';
+    }
+    
     $completedAt = $newStatus === 'completed' ? date('Y-m-d H:i:s') : null;
     
     $stmt = $db->prepare("UPDATE tasks SET status = ?, completed_at = ? WHERE id = ? AND user_id = ?");
     $stmt->bind_param('ssii', $newStatus, $completedAt, $taskId, $userId);
     $stmt->execute();
     
+    // Record status history
+    $statusLabels = [
+        'pending' => 'Ditunda',
+        'in_progress' => 'Sedang Dikerjakan',
+        'completed' => 'Selesai',
+        'cancelled' => 'Dibatalkan'
+    ];
+    
+    $oldStatusLabel = $statusLabels[$oldStatus] ?? $oldStatus;
+    $newStatusLabel = $statusLabels[$newStatus] ?? $newStatus;
+    
+    // Check if status_history table exists
+    $tableCheck = $db->query("SHOW TABLES LIKE 'status_history'");
+    if ($tableCheck && $tableCheck->num_rows > 0) {
+        $stmt = $db->prepare("INSERT INTO status_history (entity_type, entity_id, old_status, new_status, user_id, note) VALUES ('task', ?, ?, ?, ?, ?)");
+        $note = "Status diubah dari '$oldStatusLabel' menjadi '$newStatusLabel'";
+        $stmt->bind_param('isssi', $taskId, $oldStatus, $newStatus, $userId, $note);
+        $stmt->execute();
+    }
+    
     logActivity('completed', 'task', $taskId, null, $newStatus);
-    setFlash('Task status updated!');
+    setFlash('Status tugas diperbarui ke: ' . $newStatusLabel);
+    
+    echo '<script>window.location.href = "index.php?page=task_detail&id=' . $taskId . '";</script>';
+    exit;
+}
+
+// Handle change status (specific status selection)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'change_status') {
+    $oldStatus = $task['status'];
+    $newStatus = $_POST['status'] ?? $oldStatus;
+    $note = $_POST['note'] ?? '';
+    
+    if ($newStatus !== $oldStatus) {
+        $completedAt = $newStatus === 'completed' ? date('Y-m-d H:i:s') : null;
+        
+        $stmt = $db->prepare("UPDATE tasks SET status = ?, completed_at = ? WHERE id = ? AND user_id = ?");
+        $stmt->bind_param('ssii', $newStatus, $completedAt, $taskId, $userId);
+        $stmt->execute();
+        
+        // Record status history
+        $statusLabels = [
+            'pending' => 'Ditunda',
+            'in_progress' => 'Sedang Dikerjakan',
+            'completed' => 'Selesai',
+            'cancelled' => 'Dibatalkan'
+        ];
+        
+        $oldStatusLabel = $statusLabels[$oldStatus] ?? $oldStatus;
+        $newStatusLabel = $statusLabels[$newStatus] ?? $newStatus;
+        
+        $tableCheck = $db->query("SHOW TABLES LIKE 'status_history'");
+        if ($tableCheck && $tableCheck->num_rows > 0) {
+            $noteText = "Status diubah dari '$oldStatusLabel' menjadi '$newStatusLabel'";
+            if (!empty($note)) {
+                $noteText .= ". Catatan: " . $note;
+            }
+            $stmt = $db->prepare("INSERT INTO status_history (entity_type, entity_id, old_status, new_status, user_id, note) VALUES ('task', ?, ?, ?, ?, ?)");
+            $stmt->bind_param('issss', $taskId, $oldStatus, $newStatus, $userId, $noteText);
+            $stmt->execute();
+        }
+        
+        logActivity('completed', 'task', $taskId, null, $newStatus);
+        setFlash('Status tugas diperbarui ke: ' . $newStatusLabel);
+    }
     
     echo '<script>window.location.href = "index.php?page=task_detail&id=' . $taskId . '";</script>';
     exit;
@@ -378,6 +448,16 @@ $stmt = $db->prepare("SELECT * FROM notes WHERE user_id = ? AND parent_type = 't
 $stmt->bind_param('ii', $userId, $taskId);
 $stmt->execute();
 $taskNotes = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+// Get status history for this task
+$statusHistory = [];
+$tableCheck = $db->query("SHOW TABLES LIKE 'status_history'");
+if ($tableCheck && $tableCheck->num_rows > 0) {
+    $stmt = $db->prepare("SELECT * FROM status_history WHERE entity_type = 'task' AND entity_id = ? ORDER BY created_at DESC");
+    $stmt->bind_param('i', $taskId);
+    $stmt->execute();
+    $statusHistory = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+}
 
 $currentFolderId = $_GET['folder_id'] ?? 'main';
 ?>
@@ -658,12 +738,9 @@ $currentFolderId = $_GET['folder_id'] ?? 'main';
                     </div>
                     <?php endif; ?>
                     <div class="d-flex gap-2 mt-4">
-                        <form method="POST" class="flex-1">
-                            <input type="hidden" name="action" value="toggle">
-                            <button type="submit" class="btn btn-<?= $task['status'] === 'completed' ? 'warning' : 'success' ?> w-100">
-                                <?= $task['status'] === 'completed' ? '↩️ Tandai Ditunda' : '✓ Tandai Selesai' ?>
+                            <button type="button" class="btn btn-<?= $task['status'] === 'completed' ? 'warning' : 'success' ?> w-100" onclick="openTaskDetailStatusModal()">
+                                <?= $task['status'] === 'completed' ? '↩️ ' : '⚙️ ' ?>Ubah Status
                             </button>
-                        </form>
                         <form method="POST" class="flex-1" onsubmit="event.preventDefault(); swalConfirm('Hapus tugas ini?', 'Tindakan ini tidak dapat dibatalkan.', 'warning').then(result => { if (result.isConfirmed) this.submit(); })">
                             <input type="hidden" name="action" value="delete">
                             <button type="submit" class="btn btn-danger w-100">🗑️ Hapus</button>
@@ -671,6 +748,28 @@ $currentFolderId = $_GET['folder_id'] ?? 'main';
                     </div>
                 </div>
             </div>
+            
+            <!-- Status History Section -->
+            <?php if (count($statusHistory) > 0): ?>
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3 class="card-title">📜 Riwayat Status</h3>
+                </div>
+                <div class="card-body" style="max-height: 300px; overflow-y: auto; padding: 0;">
+                    <?php foreach ($statusHistory as $history): ?>
+                    <div style="padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-light);">
+                        <div class="d-flex align-center gap-2 mb-1">
+                            <span class="badge badge-<?= str_replace('_', '-', $history['new_status']) ?>">
+                                <?= ucfirst(str_replace('_', ' ', $history['new_status'])) ?>
+                            </span>
+                            <span class="text-xs text-muted"><?= formatDate($history['created_at'], 'd M Y H:i') ?></span>
+                        </div>
+                        <div class="text-sm"><?= h($history['note'] ?? '') ?></div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 </div>
@@ -1207,4 +1306,53 @@ function updateTaskFileFolder(fileId, folderId) {
         Swal.fire('Gagal', 'Gagal memindahkan file', 'error');
     });
 }
+
+    // Open task detail status modal
+function openTaskDetailStatusModal() {
+    document.getElementById('taskDetailStatusSelect').value = '<?= $task['status'] ?>';
+    openModal('taskDetailStatusModal');
+}
 </script>
+
+<!-- Task Detail Status Modal -->
+<div id="taskDetailStatusModal" class="modal">
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Ubah Status Tugas</h3>
+            <button class="modal-close" onclick="closeModal('taskDetailStatusModal')">✕</button>
+        </div>
+        <form method="POST" action="index.php?page=task_detail&id=<?= $taskId ?>">
+            <div class="modal-body">
+                <input type="hidden" name="action" value="change_status">
+                
+                <div class="form-group">
+                    <label class="form-label">Tugas</label>
+                    <div class="text-sm font-weight-500" style="padding: 8px; background: var(--bg-secondary); border-radius: 4px;"><?= h($task['title']) ?></div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Status Baru</label>
+                    <select name="status" id="taskDetailStatusSelect" class="form-control" required>
+                        <option value="pending">⏳ Ditunda</option>
+                        <option value="in_progress">🔄 Sedang Dikerjakan</option>
+                        <option value="completed">✓ Selesai</option>
+                        <option value="cancelled">❌ Dibatalkan</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Catatan (Opsional)</label>
+                    <textarea name="note" class="form-control" rows="3" placeholder="Tambahkan catatan..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('taskDetailStatusModal')">Batal</button>
+                <button type="submit" class="btn btn-primary">Simpan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    .dropdown-item:hover { background: var(--bg-hover) !important; }
+</style>

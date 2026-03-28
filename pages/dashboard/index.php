@@ -15,6 +15,55 @@ if (!isLoggedIn()) {
 $userId = getUserId();
 $db = getDB();
 
+// Handle task status change from dashboard
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'change_status') {
+    $taskId = (int)$_POST['task_id'];
+    $newStatus = sanitize($_POST['status'] ?? 'pending');
+    $note = sanitize($_POST['note'] ?? ' ');
+    
+    $stmt = $db->prepare("SELECT status FROM tasks WHERE id = ? AND user_id = ?");
+    $stmt->bind_param('ii', $taskId, $userId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $oldTask = $result->fetch_assoc();
+    $oldStatus = $oldTask['status'] ?? 'pending';
+    
+    if ($newStatus !== $oldStatus) {
+        $completedAt = $newStatus === 'completed' ? date('Y-m-d H:i:s') : null;
+        
+        $stmt = $db->prepare("UPDATE tasks SET status = ?, completed_at = ? WHERE id = ? AND user_id = ?");
+        $stmt->bind_param('ssii', $newStatus, $completedAt, $taskId, $userId);
+        $stmt->execute();
+        
+        // Record status history
+        $statusLabels = [
+            'pending' => 'Ditunda',
+            'in_progress' => 'Sedang Dikerjakan',
+            'completed' => 'Selesai',
+            'cancelled' => 'Dibatalkan'
+        ];
+        $oldStatusLabel = $statusLabels[$oldStatus] ?? $oldStatus;
+        $newStatusLabel = $statusLabels[$newStatus] ?? $newStatus;
+        
+        $tableCheck = $db->query("SHOW TABLES LIKE 'status_history'");
+        if ($tableCheck && $tableCheck->num_rows > 0) {
+            $noteText = "Status diubah dari '$oldStatusLabel' menjadi '$newStatusLabel'";
+            if (!empty($note) && trim($note) !== '') {
+                $noteText .= ". Catatan: " . $note;
+            }
+            $stmt = $db->prepare("INSERT INTO status_history (entity_type, entity_id, old_status, new_status, user_id, note) VALUES ('task', ?, ?, ?, ?, ?)");
+            $stmt->bind_param('issss', $taskId, $oldStatus, $newStatus, $userId, $noteText);
+            $stmt->execute();
+        }
+        
+        logActivity('updated', 'task', $taskId, null, $newStatus);
+        setFlash('Status tugas diperbarui ke: ' . ucfirst($newStatus));
+    }
+    
+    echo '<script>window.location.href = "index.php?page=dashboard";</script>';
+    exit;
+}
+
 // Get statistics
 $stats = [
     'total_tasks' => 0,
@@ -281,7 +330,168 @@ $allProjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         </div>
     </div>
     
-        <!-- Content Row -->
+    <!-- Tasks by Status Section -->
+    <?php
+    // Get all tasks grouped by status
+    $stmt = $db->prepare("SELECT * FROM tasks WHERE user_id = ? ORDER BY 
+        CASE status 
+            WHEN 'in_progress' THEN 1 
+            WHEN 'pending' THEN 2 
+            WHEN 'completed' THEN 3 
+            ELSE 4 
+        END,
+        CASE priority 
+            WHEN 'urgent' THEN 1 
+            WHEN 'high' THEN 2 
+            WHEN 'medium' THEN 3 
+            ELSE 4 
+        END,
+        deadline ASC");
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $allTasks = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    
+    $tasksByStatus = [
+        'pending' => [],
+        'in_progress' => [],
+        'completed' => [],
+        'cancelled' => []
+    ];
+    foreach ($allTasks as $task) {
+        $status = $task['status'];
+        if (!isset($tasksByStatus[$status])) {
+            $tasksByStatus[$status] = [];
+        }
+        $tasksByStatus[$status][] = $task;
+    }
+    ?>
+    
+    <!-- Tasks by Status Grid -->
+    <div class="d-grid mb-6" style="grid-template-columns: repeat(4, 1fr); gap: var(--space-4);">
+        <!-- Pending Tasks -->
+        <div class="card">
+            <div class="card-header" style="background: var(--warning-light);">
+                <h3 class="card-title" style="font-size: 0.9rem;">⏳ Ditunda (<?= count($tasksByStatus['pending']) ?>)</h3>
+            </div>
+            <div class="card-body" style="padding: 0; max-height: 300px; overflow-y: auto;">
+                <?php if (count($tasksByStatus['pending']) > 0): ?>
+                    <?php foreach ($tasksByStatus['pending'] as $task): ?>
+                    <div style="padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border-light);">
+                        <div class="d-flex justify-between align-start">
+                            <a href="index.php?page=task_detail&id=<?= $task['id'] ?>" class="text-sm font-weight-500" style="text-decoration: none; color: inherit;">
+                                <?= h($task['title']) ?>
+                            </a>
+                            <button type="button" class="btn btn-xs" title="Ubah Status" style="padding: 2px 4px; background: transparent; border: none;" onclick="openStatusModal(<?= $task['id'] ?>, '<?= h($task['title']) ?>', '<?= $task['status'] ?>')">⚙️</button>
+                        </div>
+                        <div class="text-xs text-muted">
+                            <?php if ($task['deadline']): ?>
+                                <?php 
+                                $deadline = new DateTime($task['deadline']); 
+                                $now = new DateTime();
+                                $isOverdue = $deadline < $now;
+                                ?>
+                                <span class="<?= $isOverdue ? 'text-error' : '' ?>"><?= $isOverdue ? '⚠️ ' : '' ?><?= formatDate($task['deadline'], 'M d') ?></span>
+                            <?php endif; ?>
+                            <span class="badge badge-<?= $task['priority'] ?>" style="font-size: 0.6rem; margin-left: 4px;"><?= ucfirst($task['priority']) ?></span>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <div class="p-3 text-center text-muted text-sm">Tidak ada tugas ditunda</div>
+                <?php endif; ?>
+            </div>
+        </div>
+        
+                    <!-- In Progress Tasks -->
+        <div class="card">
+            <div class="card-header" style="background: var(--info-light);">
+                <h3 class="card-title" style="font-size: 0.9rem;">🔄 Sedang Dikerjakan (<?= count($tasksByStatus['in_progress']) ?>)</h3>
+            </div>
+            <div class="card-body" style="padding: 0; max-height: 300px; overflow-y: auto;">
+                <?php if (count($tasksByStatus['in_progress']) > 0): ?>
+                    <?php foreach ($tasksByStatus['in_progress'] as $task): ?>
+                    <div style="padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border-light);">
+                        <div class="d-flex justify-between align-start">
+                            <a href="index.php?page=task_detail&id=<?= $task['id'] ?>" class="text-sm font-weight-500" style="text-decoration: none; color: inherit;">
+                                <?= h($task['title']) ?>
+                            </a>
+                            <button type="button" class="btn btn-xs" title="Ubah Status" style="padding: 2px 4px; background: transparent; border: none;" onclick="openStatusModal(<?= $task['id'] ?>, '<?= h($task['title']) ?>', '<?= $task['status'] ?>')">⚙️</button>
+                        </div>
+                        <div class="text-xs text-muted">
+                            <?php if ($task['deadline']): ?>
+                                <?php 
+                                $deadline = new DateTime($task['deadline']); 
+                                $now = new DateTime();
+                                $isOverdue = $deadline < $now;
+                                ?>
+                                <span class="<?= $isOverdue ? 'text-error' : '' ?>"><?= $isOverdue ? '⚠️ ' : '' ?><?= formatDate($task['deadline'], 'M d') ?></span>
+                            <?php endif; ?>
+                            <span class="badge badge-<?= $task['priority'] ?>" style="font-size: 0.6rem; margin-left: 4px;"><?= ucfirst($task['priority']) ?></span>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <div class="p-3 text-center text-muted text-sm">Tidak ada tugas berlangsung</div>
+                <?php endif; ?>
+            </div>
+        </div>
+        
+        <!-- Completed Tasks -->
+        <div class="card">
+            <div class="card-header" style="background: var(--success-light);">
+                <h3 class="card-title" style="font-size: 0.9rem;">✓ Selesai (<?= count($tasksByStatus['completed']) ?>)</h3>
+            </div>
+            <div class="card-body" style="padding: 0; max-height: 300px; overflow-y: auto;">
+                <?php if (count($tasksByStatus['completed']) > 0): ?>
+                    <?php foreach ($tasksByStatus['completed'] as $task): ?>
+                    <div style="padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border-light);">
+                        <div class="d-flex justify-between align-start">
+                            <a href="index.php?page=task_detail&id=<?= $task['id'] ?>" class="text-sm font-weight-500" style="text-decoration: none; color: var(--text-muted);">
+                                <?= h($task['title']) ?>
+                            </a>
+                            <button type="button" class="btn btn-xs" title="Ubah Status" style="padding: 2px 4px; background: transparent; border: none;" onclick="openStatusModal(<?= $task['id'] ?>, '<?= h($task['title']) ?>', '<?= $task['status'] ?>')">⚙️</button>
+                        </div>
+                        <div class="text-xs text-muted">
+                            <?php if ($task['completed_at']): ?>
+                                Selesai: <?= formatDate($task['completed_at'], 'M d') ?>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <div class="p-3 text-center text-muted text-sm">Tidak ada tugas selesai</div>
+                <?php endif; ?>
+            </div>
+        </div>
+        
+        <!-- Cancelled Tasks -->
+        <div class="card">
+            <div class="card-header" style="background: var(--error-light);">
+                <h3 class="card-title" style="font-size: 0.9rem;">❌ Dibatalkan (<?= count($tasksByStatus['cancelled']) ?>)</h3>
+            </div>
+            <div class="card-body" style="padding: 0; max-height: 300px; overflow-y: auto;">
+                <?php if (count($tasksByStatus['cancelled']) > 0): ?>
+                    <?php foreach ($tasksByStatus['cancelled'] as $task): ?>
+                    <div style="padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border-light);">
+                        <div class="d-flex justify-between align-start">
+                            <a href="index.php?page=task_detail&id=<?= $task['id'] ?>" class="text-sm font-weight-500" style="text-decoration: none; color: var(--text-muted);">
+                                <?= h($task['title']) ?>
+                            </a>
+                            <button type="button" class="btn btn-xs" title="Ubah Status" style="padding: 2px 4px; background: transparent; border: none;" onclick="openStatusModal(<?= $task['id'] ?>, '<?= h($task['title']) ?>', '<?= $task['status'] ?>')">⚙️</button>
+                        </div>
+                        <div class="text-xs text-muted">
+                            <?= ucfirst($task['category']) ?>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <div class="p-3 text-center text-muted text-sm">Tidak ada tugas dibatalkan</div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Content Row -->
     <div class="d-grid dashboard-content-grid">
         <!-- Upcoming Deadlines -->
         <div class="card">
@@ -292,11 +502,10 @@ $allProjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             <div class="card-body" style="padding: 0;">
                 <?php if (count($upcomingTasks) > 0): ?>
                     <?php foreach ($upcomingTasks as $task): ?>
-                    <div class="task-item" style="padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-light);">
+                    <a href="index.php?page=task_detail&id=<?= $task['id'] ?>" class="task-item" style="padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-light); display: block; text-decoration: none; color: inherit; transition: background 0.2s;">
                         <div class="d-flex align-center gap-3">
-                            <input type="checkbox" class="task-checkbox" data-task-id="<?= $task['id'] ?>">
                             <div class="flex-1">
-                                <div class="font-weight-500 truncate"><?= h($task['title']) ?></div>
+                                <div class="font-weight-500"><?= h($task['title']) ?></div>
                                 <div class="text-xs text-muted">
                                     <?php 
                                     $dueDate = new DateTime($task['deadline']);
@@ -316,7 +525,7 @@ $allProjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                             </div>
                             <span class="badge badge-<?= $task['priority'] ?>"><?= ucfirst($task['priority']) ?></span>
                         </div>
-                    </div>
+                    </a>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <div class="p-4 text-center text-muted">Tidak ada tenggat waktu mendatang</div>
@@ -333,7 +542,7 @@ $allProjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             <div class="card-body" style="padding: 0;">
                 <?php if (count($recentProjects) > 0): ?>
                     <?php foreach ($recentProjects as $project): ?>
-                    <div style="padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-light);">
+                    <a href="index.php?page=project_detail&id=<?= $project['id'] ?>" style="padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-light); display: block; text-decoration: none; color: inherit; transition: background 0.2s;">
                         <div class="d-flex align-center justify-between mb-2">
                             <div class="font-weight-500"><?= h($project['name']) ?></div>
                             <span class="badge badge-<?= str_replace('_', '-', $project['status']) ?>">
@@ -344,7 +553,7 @@ $allProjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                             <div class="progress-bar" style="width: <?= $project['progress_percentage'] ?>%"></div>
                         </div>
                         <div class="text-xs text-muted mt-1"><?= $project['progress_percentage'] ?>% complete</div>
-                    </div>
+                    </a>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <div class="p-4 text-center text-muted">Belum ada proyek</div>
@@ -658,6 +867,35 @@ $allProjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 </div>
 
 <script>
+    // Dashboard task dropdown toggle function
+    function toggleDashboardTaskDropdown(taskId) {
+        var dropdown = document.getElementById('dashboardTaskDropdown_' + taskId);
+        if (dropdown) {
+            // Hide all other dropdowns first
+            document.querySelectorAll('.dropdown-menu[id^="dashboardTaskDropdown_"]').forEach(function(el) {
+                if (el.id !== 'dashboardTaskDropdown_' + taskId) {
+                    el.style.display = 'none';
+                }
+            });
+            
+            // Toggle current dropdown
+            if (dropdown.style.display === 'none' || dropdown.style.display === '') {
+                dropdown.style.display = 'block';
+            } else {
+                dropdown.style.display = 'none';
+            }
+        }
+    }
+
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.dropdown')) {
+            document.querySelectorAll('.dropdown-menu[id^="dashboardTaskDropdown_"]').forEach(function(el) {
+                el.style.display = 'none';
+            });
+        }
+    });
+
     // Calendar view settings
     let calendarViewMode = 'deadline'; // 'deadline' or 'duration'
     let calendarTypeFilter = 'all'; // 'all', 'task', or 'project'
@@ -984,8 +1222,57 @@ $allProjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             submitBtn.innerHTML = originalText;
         });
         
-        return false;
+    return false;
     }
+</script>
+
+<!-- Status Change Modal -->
+<div id="statusChangeModal" class="modal">
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Ubah Status Tugas</h3>
+            <button class="modal-close" onclick="closeModal('statusChangeModal')">✕</button>
+        </div>
+        <form method="POST" action="index.php?page=dashboard">
+            <div class="modal-body">
+                <input type="hidden" name="action" value="change_status">
+                <input type="hidden" name="task_id" id="status_task_id">
+                
+                <div class="form-group">
+                    <label class="form-label">Tugas</label>
+                    <div id="status_task_title" class="text-sm font-weight-500" style="padding: 8px; background: var(--bg-secondary); border-radius: 4px;"></div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Status Baru</label>
+                    <select name="status" id="status_select" class="form-control" required>
+                        <option value="pending">⏳ Ditunda</option>
+                        <option value="in_progress">🔄 Sedang Dikerjakan</option>
+                        <option value="completed">✓ Selesai</option>
+                        <option value="cancelled">❌ Dibatalkan</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Catatan (Opsional)</label>
+                    <textarea name="note" class="form-control" rows="3" placeholder="Tambahkan catatan..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('statusChangeModal')">Batal</button>
+                <button type="submit" class="btn btn-primary">Simpan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openStatusModal(taskId, taskTitle, currentStatus) {
+    document.getElementById('status_task_id').value = taskId;
+    document.getElementById('status_task_title').textContent = taskTitle;
+    document.getElementById('status_select').value = currentStatus;
+    openModal('statusChangeModal');
+}
 </script>
 
 <!-- Add Project Modal (From Projects Page) -->

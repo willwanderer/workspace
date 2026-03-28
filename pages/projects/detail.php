@@ -310,6 +310,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exit;
 }
 
+// Handle toggle task status from project detail
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'toggle_task') {
+    $taskId = (int)$_POST['task_id'];
+    
+    $stmt = $db->prepare("SELECT status FROM tasks WHERE id = ? AND user_id = ?");
+    $stmt->bind_param('ii', $taskId, $userId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $task = $result->fetch_assoc();
+    
+    if ($task) {
+        $newStatus = $task['status'] === 'completed' ? 'pending' : 'completed';
+        $completedAt = $newStatus === 'completed' ? date('Y-m-d H:i:s') : null;
+        
+        $stmt = $db->prepare("UPDATE tasks SET status = ?, completed_at = ? WHERE id = ? AND user_id = ?");
+        $stmt->bind_param('ssii', $newStatus, $completedAt, $taskId, $userId);
+        $stmt->execute();
+        
+        logActivity('completed', 'task', $taskId, null, $newStatus);
+        setFlash($newStatus === 'completed' ? 'Tugas selesai!' : 'Tugas ditandai ditunda!');
+    }
+    
+    echo '<script>window.location.href = "index.php?page=project_detail&id=' . $projectId . '";</script>';
+    exit;
+}
+
+// Handle delete task from project detail
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_task') {
+    $taskId = (int)$_POST['task_id'];
+    
+    $stmt = $db->prepare("DELETE FROM tasks WHERE id = ? AND user_id = ?");
+    $stmt->bind_param('ii', $taskId, $userId);
+    $stmt->execute();
+    
+    logActivity('deleted', 'task', $taskId, null, null);
+    setFlash('Tugas berhasil dihapus!');
+    
+    echo '<script>window.location.href = "index.php?page=project_detail&id=' . $projectId . '";</script>';
+    exit;
+}
+
 // Get project notes
 $stmt = $db->prepare("SELECT * FROM notes WHERE user_id = ? AND parent_type = 'project' AND parent_id = ? ORDER BY created_at DESC");
 $stmt->bind_param('ii', $userId, $projectId);
@@ -404,10 +445,10 @@ $currentFolderId = $_GET['folder_id'] ?? 'main';
                                                 <?= $task['status'] === 'completed' ? '↩️' : '✓' ?>
                                             </button>
                                         </form>
-                                        <form method="POST" style="display: inline;" onsubmit="return confirm('Apakah Anda yakin ingin menghapus tugas ini?');">
+                                        <form method="POST" style="display: inline;" id="deleteTaskForm_<?= $task['id'] ?>">
                                             <input type="hidden" name="action" value="delete_task">
                                             <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
-                                            <button type="submit" class="btn btn-sm btn-icon" title="Hapus Tugas" style="color: var(--error);">🗑️</button>
+                                            <button type="button" class="btn btn-sm btn-icon" title="Hapus Tugas" style="color: var(--error);" onclick="confirmDeleteTask(<?= $task['id'] ?>, '<?= h($task['title']) ?>')">🗑️</button>
                                         </form>
                                     </div>
                                 </div>
@@ -945,6 +986,24 @@ $currentFolderId = $_GET['folder_id'] ?? 'main';
 </div>
 
 <script>
+// Confirm delete task with SweetAlert
+function confirmDeleteTask(taskId, taskTitle) {
+    Swal.fire({
+        title: 'Hapus tugas?',
+        text: 'Apakah Anda yakin ingin menghapus tugas "' + taskTitle + '"? Tindakan ini tidak dapat dibatalkan.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Ya, Hapus',
+        cancelButtonText: 'Batal',
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#6b7280'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            document.getElementById('deleteTaskForm_' + taskId).submit();
+        }
+    });
+}
+
 // Toggle task from project detail
 function toggleProjectTask(taskId) {
     const form = document.createElement('form');

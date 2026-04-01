@@ -48,6 +48,11 @@ if (isLoggedIn()) {
         <div class="nav-section">
             <div class="nav-section-title">Alat</div>
             
+            <a href="index.php?page=organizer" class="nav-item <?= $currentPage === 'organizer' ? 'active' : '' ?>">
+                <span class="nav-icon">📋</span>
+                <span>Organizer</span>
+            </a>
+            
             <a href="index.php?page=links" class="nav-item <?= $currentPage === 'links' ? 'active' : '' ?>">
                 <span class="nav-icon">🔗</span>
                 <span>Tautan Cepat</span>

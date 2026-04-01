@@ -814,6 +814,27 @@ function initQuickActions() {
 function initThemeToggle() {
     const themeToggle = document.querySelector('[data-theme-toggle]');
     
+    function updateThemeIcon(theme) {
+        if (!themeToggle) return;
+        if (theme === 'dark') {
+            themeToggle.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>`;
+        } else {
+            themeToggle.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>`;
+        }
+    }
+    
     if (themeToggle) {
         themeToggle.addEventListener('click', () => {
             const currentTheme = document.documentElement.dataset.theme;
@@ -821,6 +842,7 @@ function initThemeToggle() {
             
             document.documentElement.dataset.theme = newTheme;
             localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
             
             // Save preference to server
             fetch('api/settings.php', {
@@ -837,6 +859,9 @@ function initThemeToggle() {
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme) {
         document.documentElement.dataset.theme = savedTheme;
+        updateThemeIcon(savedTheme);
+    } else {
+        updateThemeIcon('light');
     }
 }
 
@@ -876,9 +901,17 @@ function loadNotifications() {
 function getNotificationIcon(type) {
     const icons = {
         'task_due': '⏰',
+        'task_upcoming': '⏰',
         'task_assigned': '✅',
+        'task_overdue': '⚠️',
         'project_update': '📁',
+        'project_due': '📁',
+        'project_upcoming': '📁',
+        'project_overdue': '⚠️',
         'comment': '💬',
+        'reminder': '📋',
+        'reminder_upcoming': '📋',
+        'reminder_overdue': '⏰',
         'mention': '📢',
         'system': '⚙️'
     };
@@ -1066,10 +1099,172 @@ window.addEventListener('scroll', debounce(() => {
 
 /* ============================================
     INITIALIZE NOTIFICATIONS
-    ============================================ */
+   ============================================ */
 // Load notifications on page load if the container exists
 if (document.getElementById('notificationsList')) {
     loadNotifications();
+}
+
+/* ============================================
+   BROWSER PUSH NOTIFICATIONS
+   ============================================ */
+function requestNotificationPermission() {
+    // Request permission on first click
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                // Show test notification
+                new Notification('Notifikasi Dihaktifkan!', {
+                    body: 'Anda akan menerima notifikasi pengingat.',
+                    icon: 'data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'><text y=\'.9em\' font-size=\'90\'>🔔</text></svg>'
+                });
+            }
+        });
+    }
+}
+
+function checkAndLoadNotifications() {
+    // First check for upcoming tasks/projects/reminders
+    fetch('api/notifications.php?action=check_upcoming')
+        .then(response => response.json())
+        .then(data => {
+            console.log('Check upcoming result:', data);
+            // Then load notifications
+            loadNotifications();
+        })
+        .catch(error => {
+            console.error('Error checking upcoming:', error);
+            loadNotifications();
+        });
+}
+
+// Auto-check on page load (every 5 minutes)
+if (document.getElementById('notificationsList')) {
+    setTimeout(checkAndLoadNotifications, 2000); // Check 2 seconds after page load
+    setInterval(checkAndLoadNotifications, 5 * 60 * 1000); // Then every 5 minutes
+}
+
+function loadNotifications() {
+    const container = document.getElementById('notificationsList');
+    if (!container) return;
+    
+    // Fetch notifications via AJAX
+    fetch('api/notifications.php?action=list')
+        .then(response => response.json())
+        .then(data => {
+            if (data.notifications && data.notifications.length > 0) {
+                const icons = {
+                    'task_due': '⏰',
+                    'task_upcoming': '⏰',
+                    'task_assigned': '✅',
+                    'task_overdue': '⚠️',
+                    'project_update': '📁',
+                    'project_due': '📁',
+                    'project_upcoming': '📁',
+                    'project_overdue': '⚠️',
+                    'comment': '💬',
+                    'reminder': '📋',
+                    'reminder_upcoming': '📋',
+                    'reminder_overdue': '⏰',
+                    'mention': '📢',
+                    'system': '⚙️'
+                };
+                
+                container.innerHTML = data.notifications.map(notif => `
+                    <div class="dropdown-item notification-item ${notif.is_read ? 'read' : 'unread'}" 
+                         data-id="${notif.id}" 
+                         onclick="handleNotificationClick(${notif.id}, '${notif.link || ''}')"
+                         style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
+                        <span style="font-size: 1.25rem;">${icons[notif.type] || '🔔'}</span>
+                        <div style="flex: 1;">
+                            <div style="font-weight: ${notif.is_read ? 'normal' : '500'};">${notif.title}</div>
+                            <div class="text-xs text-muted">${notif.message || ''}</div>
+                            <div class="text-xs text-muted">${timeAgo(notif.created_at)}</div>
+                        </div>
+                        ${!notif.is_read ? '<span style="width: 8px; height: 8px; background: #3b82f6; border-radius: 50%; flex-shrink: 0;"></span>' : ''}
+                    </div>
+                `).join('');
+                
+                // Update badge
+                const unreadCount = data.notifications.filter(n => !n.is_read).length;
+                const badge = document.getElementById('unreadBadge');
+                if (badge) {
+                    badge.textContent = unreadCount > 0 ? unreadCount : '';
+                    badge.style.display = unreadCount > 0 ? '' : 'none';
+                }
+            } else {
+                container.innerHTML = '<div class="p-4 text-center text-muted">Tidak ada notifikasi</div>';
+                const badge = document.getElementById('unreadBadge');
+                if (badge) {
+                    badge.textContent = '';
+                    badge.style.display = 'none';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error loading notifications:', error);
+        });
+}
+
+function handleNotificationClick(id, link) {
+    // Mark as read
+    markNotificationRead(id);
+    
+    // Navigate if link exists
+    if (link) {
+        window.location.href = link;
+    }
+}
+
+function markNotificationRead(id) {
+    fetch('api/notifications.php?action=mark_read', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'id=' + id
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Update UI
+        const item = document.querySelector(`.notification-item[data-id="${id}"]`);
+        if (item) {
+            item.classList.remove('unread');
+            item.classList.add('read');
+            item.querySelector('div').style.fontWeight = 'normal';
+            const dot = item.querySelector('span:last-child');
+            if (dot && dot.style.width === '8px') {
+                dot.remove();
+            }
+        }
+        
+        // Update badge count
+        updateUnreadBadge();
+    })
+    .catch(error => console.error('Error marking read:', error));
+}
+
+function markAllRead() {
+    fetch('api/notifications.php?action=mark_all_read', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Reload notifications
+        loadNotifications();
+    })
+    .catch(error => console.error('Error marking all read:', error));
+}
+
+function updateUnreadBadge() {
+    fetch('api/notifications.php?action=unread_count')
+        .then(response => response.json())
+        .then(data => {
+            const badge = document.getElementById('unreadBadge');
+            if (badge) {
+                badge.textContent = data.count > 0 ? data.count : '';
+                badge.style.display = data.count > 0 ? '' : 'none';
+            }
+        })
+        .catch(error => console.error('Error getting count:', error));
 }
 
 /* ============================================

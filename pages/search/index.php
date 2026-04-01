@@ -23,6 +23,7 @@ $tasks = [];
 $projects = [];
 $contacts = [];
 $notes = [];
+$organizerNotes = [];
 $links = [];
 
 if ($query) {
@@ -45,11 +46,17 @@ if ($query) {
     $stmt->execute();
     $contacts = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     
-    // Search notes
+    // Search notes (old notes table)
     $stmt = $db->prepare("SELECT * FROM notes WHERE user_id = ? AND (LOWER(title) LIKE ? OR LOWER(content) LIKE ?) ORDER BY updated_at DESC LIMIT 20");
     $stmt->bind_param('iss', $userId, $searchTerm, $searchTerm);
     $stmt->execute();
     $notes = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    
+    // Search organizer notes
+    $stmt = $db->prepare("SELECT * FROM organizer_notes WHERE user_id = ? AND is_trashed = 0 AND (LOWER(title) LIKE ? OR LOWER(content) LIKE ?) ORDER BY updated_at DESC LIMIT 20");
+    $stmt->bind_param('iss', $userId, $searchTerm, $searchTerm);
+    $stmt->execute();
+    $organizerNotes = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     
     // Search quick links
     $stmt = $db->prepare("SELECT * FROM quick_links WHERE user_id = ? AND (LOWER(title) LIKE ? OR LOWER(url) LIKE ?) ORDER BY created_at DESC LIMIT 20");
@@ -58,7 +65,7 @@ if ($query) {
     $links = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
 
-$totalResults = count($tasks) + count($projects) + count($contacts) + count($notes) + count($links);
+$totalResults = count($tasks) + count($projects) + count($contacts) + count($notes) + count($organizerNotes) + count($links);
 ?>
 
 <!-- Search Results Page -->
@@ -163,6 +170,24 @@ $totalResults = count($tasks) + count($projects) + count($contacts) + count($not
         </div>
         <div class="card-body" style="padding: 0;">
             <?php foreach ($notes as $note): ?>
+            <div style="padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-light);">
+                <div class="font-weight-500"><?= h($note['title'] ?? 'Untitled') ?></div>
+                <div class="text-sm text-muted truncate" style="max-width: 500px;"><?= h(substr($note['content'] ?? '', 0, 100)) ?>...</div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+    
+    <!-- Organizer Notes Results -->
+    <?php if (count($organizerNotes) > 0): ?>
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title">📋 Organizer Notes (<?= count($organizerNotes) ?>)</h3>
+            <a href="index.php?page=organizer" class="btn btn-sm btn-secondary">View All</a>
+        </div>
+        <div class="card-body" style="padding: 0;">
+            <?php foreach ($organizerNotes as $note): ?>
             <div style="padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-light);">
                 <div class="font-weight-500"><?= h($note['title'] ?? 'Untitled') ?></div>
                 <div class="text-sm text-muted truncate" style="max-width: 500px;"><?= h(substr($note['content'] ?? '', 0, 100)) ?>...</div>

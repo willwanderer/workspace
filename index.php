@@ -293,9 +293,11 @@ $pageTitles = [
     'contacts' => 'Kontak',
     'links' => 'Tautan Cepat',
     'notes' => 'Catatan',
+    'organizer' => 'Organizer',
     'activity' => 'Riwayat Aktivitas',
     'settings' => 'Pengaturan',
-    'search' => 'Pencarian'
+    'search' => 'Pencarian',
+    'notifications' => 'Notifikasi'
 ];
 
 // AJAX handlers for folder/file operations
@@ -506,6 +508,10 @@ if (!function_exists('formatFileSize')) {
                     include 'pages/notes/index.php';
                     break;
                 
+                case 'organizer':
+                    include 'pages/organizer/index.php';
+                    break;
+                
                 case 'activity':
                     include 'pages/activity/index.php';
                     break;
@@ -516,6 +522,10 @@ if (!function_exists('formatFileSize')) {
                 
                 case 'search':
                     include 'pages/search/index.php';
+                    break;
+                
+                case 'notifications':
+                    include 'pages/notifications/index.php';
                     break;
                 
                 default:

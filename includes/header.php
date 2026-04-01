@@ -17,8 +17,10 @@ $pageTitles = [
     'contacts' => 'Kontak',
     'links' => 'Tautan Cepat',
     'notes' => 'Catatan',
+    'organizer' => 'Organizer',
     'activity' => 'Riwayat Aktivitas',
-    'settings' => 'Pengaturan'
+    'settings' => 'Pengaturan',
+    'notifications' => 'Notifikasi'
 ];
 
 $pageTitle = $pageTitles[$currentPage] ?? 'Beranda';
@@ -63,7 +65,7 @@ if ($user && !empty($user['full_name'])) {
         <form method="GET" action="index.php" id="globalSearchForm" style="display: flex; align-items: center; width: 100%;">
             <input type="hidden" name="page" value="search">
             <span class="header-search-icon">🔍</span>
-            <input type="text" name="q" placeholder="Cari tugas, proyek, kontak..." id="globalSearch" autocomplete="off">
+            <input type="text" name="q" placeholder="Cari tugas, proyek, catatan..." id="globalSearch" autocomplete="off">
             <!-- Search Suggestions Dropdown -->
             <div id="searchSuggestions" class="search-suggestions" style="display: none;"></div>
         </form>
@@ -77,37 +79,51 @@ if ($user && !empty($user['full_name'])) {
         
         <!-- Notifications -->
         <div class="dropdown">
-            <button class="header-btn dropdown-trigger">
-                <span>🔔</span>
-                <?php if (count($unreadNotifications) > 0): ?>
-                <span class="badge"></span>
-                <?php endif; ?>
+            <button class="header-btn dropdown-trigger" onclick="checkAndLoadNotifications()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                </svg>
+                <span id="unreadBadge" class="badge" style="<?= count($unreadNotifications) > 0 ? '' : 'display:none;' ?>"><?= count($unreadNotifications) > 0 ? count($unreadNotifications) : '' ?></span>
             </button>
             
-            <div class="dropdown-menu" style="width: 320px;">
-                <div style="padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-light);">
+            <div class="dropdown-menu" style="width: 350px;">
+                <div style="padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center;">
                     <strong>Notifikasi</strong>
+                    <button class="btn btn-sm btn-link" onclick="markAllRead()" style="font-size: 12px;">Tandai semua dibaca</button>
                 </div>
-                <div id="notificationsList" style="max-height: 300px; overflow-y: auto;">
+                <div id="notificationsList" style="max-height: 350px; overflow-y: auto;">
                     <?php if (count($unreadNotifications) > 0): ?>
                         <?php foreach ($unreadNotifications as $notif): ?>
-                        <div class="dropdown-item">
+                        <div class="dropdown-item notification-item <?= $notif['is_read'] ? 'read' : 'unread' ?>" data-id="<?= $notif['id'] ?>" onclick="markNotificationRead(<?= $notif['id'] ?>)">
                             <span style="font-size: 1.25rem;">
                                 <?php 
                                 $icons = [
                                     'task_due' => '⏰',
+                                    'task_upcoming' => '⏰',
                                     'task_assigned' => '✅',
+                                    'task_overdue' => '⚠️',
                                     'project_update' => '📁',
+                                    'project_due' => '📁',
+                                    'project_upcoming' => '📁',
+                                    'project_overdue' => '⚠️',
                                     'comment' => '💬',
+                                    'reminder' => '📋',
+                                    'reminder_upcoming' => '📋',
+                                    'reminder_overdue' => '⏰',
                                     'system' => '⚙️'
                                 ];
                                 echo $icons[$notif['type']] ?? '🔔';
                                 ?>
                             </span>
-                            <div>
-                                <div style="font-weight: 500;"><?= h($notif['title']) ?></div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: <?= $notif['is_read'] ? 'normal' : '500'; ?>;"><?= h($notif['title']) ?></div>
+                                <div class="text-xs text-muted"><?= h($notif['message'] ?? '') ?></div>
                                 <div class="text-xs text-muted"><?= timeAgo($notif['created_at']) ?></div>
                             </div>
+                            <?php if (!$notif['is_read']): ?>
+                            <span style="width: 8px; height: 8px; background: #3b82f6; border-radius: 50%; flex-shrink: 0;"></span>
+                            <?php endif; ?>
                         </div>
                         <?php endforeach; ?>
                     <?php else: ?>
@@ -124,12 +140,19 @@ if ($user && !empty($user['full_name'])) {
         
         <!-- Theme Toggle -->
         <button class="header-btn" data-theme-toggle>
-            <span>🌙</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
         </button>
         
         <!-- Right Sidebar Toggle -->
         <button class="right-sidebar-toggle" id="rightSidebarToggle" type="button" aria-label="Toggle Right Sidebar">
-            <span>📋</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
         </button>
         
         <!-- User Menu -->

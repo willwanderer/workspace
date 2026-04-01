@@ -171,11 +171,34 @@ $stmt->bind_param('i', $userId);
 $stmt->execute();
 $upcomingTasks = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
-// Get recent projects
+// Get recent projects with calculated progress based on tasks
 $stmt = $db->prepare("SELECT * FROM projects WHERE owner_id = ? ORDER BY updated_at DESC LIMIT 3");
 $stmt->bind_param('i', $userId);
 $stmt->execute();
 $recentProjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+// Calculate progress for each project based on tasks
+foreach ($recentProjects as &$project) {
+    $projectId = $project['id'];
+    $stmt = $db->prepare("SELECT status FROM tasks WHERE project_id = ? AND user_id = ?");
+    $stmt->bind_param('ii', $projectId, $userId);
+    $stmt->execute();
+    $projectTasks = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    
+    $totalTasks = count($projectTasks);
+    $completedTasks = 0;
+    foreach ($projectTasks as $task) {
+        if ($task['status'] === 'completed') {
+            $completedTasks++;
+        }
+    }
+    
+    // Calculate progress based on tasks (same as project detail)
+    $project['calculated_progress'] = $totalTasks > 0 ? round(($completedTasks / $totalTasks) * 100) : 0;
+    $project['total_tasks'] = $totalTasks;
+    $project['completed_tasks'] = $completedTasks;
+}
+unset($project);
 
 // Get recent activities
 $stmt = $db->prepare("SELECT al.*, u.username FROM activity_logs al JOIN users u ON al.user_id = u.id WHERE al.user_id = ? ORDER BY al.created_at DESC LIMIT 10");
@@ -550,9 +573,12 @@ $allProjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                             </span>
                         </div>
                         <div class="progress" style="height: 6px;">
-                            <div class="progress-bar" style="width: <?= $project['progress_percentage'] ?>%"></div>
+                            <div class="progress-bar" style="width: <?= $project['calculated_progress'] ?>%"></div>
                         </div>
-                        <div class="text-xs text-muted mt-1"><?= $project['progress_percentage'] ?>% complete</div>
+                        <div class="text-xs text-muted mt-1">
+                            <?= $project['calculated_progress'] ?>% 
+                            (<?= $project['completed_tasks'] ?>/<?= $project['total_tasks'] ?> tugas)
+                        </div>
                     </a>
                     <?php endforeach; ?>
                 <?php else: ?>
@@ -608,6 +634,181 @@ $allProjects = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 <button class="btn btn-secondary" onclick="window.location.href='index.php?page=links'">
                     <span>🔗</span> Tambah Link
                 </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Performance / Rating Section -->
+    <?php
+    // Calculate performance metrics
+    // Get completed tasks with their deadlines
+    $stmt = $db->prepare("SELECT * FROM tasks WHERE user_id = ? AND status = 'completed' AND completed_at IS NOT NULL");
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $completedTasksWithDeadline = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    
+    // Calculate task completion rate
+    $totalTasksAll = $stats['total_tasks'];
+    $completedTasksAll = $stats['completed_tasks'];
+    $completionRate = $totalTasksAll > 0 ? round(($completedTasksAll / $totalTasksAll) * 100) : 0;
+    
+    // Calculate on-time completion rate
+    $onTimeCount = 0;
+    $lateCount = 0;
+    $totalWithDeadline = 0;
+    foreach ($completedTasksWithDeadline as $task) {
+        if (!empty($task['deadline'])) {
+            $totalWithDeadline++;
+            $deadline = new DateTime($task['deadline']);
+            $completedAt = new DateTime($task['completed_at']);
+            if ($completedAt <= $deadline) {
+                $onTimeCount++;
+            } else {
+                $lateCount++;
+            }
+        }
+    }
+    $onTimeRate = $totalWithDeadline > 0 ? round(($onTimeCount / $totalWithDeadline) * 100) : 0;
+    
+    // Calculate average completion time (for tasks with deadline)
+    $avgCompletionDays = 0;
+    if (count($completedTasksWithDeadline) > 0) {
+        $totalDays = 0;
+        $countWithStart = 0;
+        foreach ($completedTasksWithDeadline as $task) {
+            if (!empty($task['created_at']) && !empty($task['completed_at'])) {
+                $created = new DateTime($task['created_at']);
+                $completed = new DateTime($task['completed_at']);
+                $diff = $created->diff($completed);
+                $totalDays += $diff->days;
+                $countWithStart++;
+            }
+        }
+        $avgCompletionDays = $countWithStart > 0 ? round($totalDays / $countWithStart, 1) : 0;
+    }
+    
+    // Calculate performance rating based on multiple factors
+    $ratingScore = 0;
+    $ratingLabel = '';
+    $ratingColor = '';
+    $ratingIcon = '';
+    
+    // Score calculation:
+    // - Completion rate (40% weight)
+    // - On-time rate (40% weight)
+    // - Consistency (20% weight - based on ratio of in_progress to completed)
+    
+    $scoreCompletion = $completionRate;
+    $scoreOnTime = $onTimeRate;
+    
+    // Consistency: Higher ratio of in_progress to completed is less consistent
+    $inProgressRatio = $stats['in_progress_tasks'];
+    $consistencyScore = 100;
+    if ($completedTasksAll > 0) {
+        $ratio = $inProgressRatio / $completedTasksAll;
+        if ($ratio > 2) $consistencyScore = 50;
+        elseif ($ratio > 1) $consistencyScore = 70;
+        elseif ($ratio > 0.5) $consistencyScore = 85;
+    }
+    
+    $ratingScore = round(($scoreCompletion * 0.4) + ($scoreOnTime * 0.4) + ($consistencyScore * 0.2));
+    
+    // Determine rating label
+    if ($ratingScore >= 90) {
+        $ratingLabel = 'Sangat Baik';
+        $ratingColor = 'success';
+        $ratingIcon = '🌟';
+    } elseif ($ratingScore >= 75) {
+        $ratingLabel = 'Baik';
+        $ratingColor = 'primary';
+        $ratingIcon = '⭐';
+    } elseif ($ratingScore >= 60) {
+        $ratingLabel = 'Cukup';
+        $ratingColor = 'warning';
+        $ratingIcon = '👍';
+    } elseif ($ratingScore >= 40) {
+        $ratingLabel = 'Perlu Perbaikan';
+        $ratingColor = 'error';
+        $ratingIcon = '⚠️';
+    } else {
+        $ratingLabel = 'Buruk';
+        $ratingColor = 'error';
+        $ratingIcon = '❌';
+    }
+    ?>
+    
+    <!-- Performance Section -->
+    <div class="card mt-6">
+        <div class="card-header">
+            <h3 class="card-title">📈 Performa Saya</h3>
+        </div>
+        <div class="card-body">
+            <div class="d-grid" style="grid-template-columns: repeat(4, 1fr); gap: var(--space-4);">
+                <!-- Overall Rating -->
+                <div style="text-align: center; padding: var(--space-4); background: var(--bg-secondary); border-radius: var(--radius-md);">
+                    <div style="font-size: 2.5rem; margin-bottom: var(--space-2);"><?= $ratingIcon ?></div>
+                    <div class="text-sm text-muted">Rating Keseluruhan</div>
+                    <div class="font-weight-600" style="font-size: 1.25rem; color: var(--<?= $ratingColor ?>);"><?= $ratingLabel ?></div>
+                    <div class="text-xs text-muted">Skor: <?= $ratingScore ?>/100</div>
+                </div>
+                
+                <!-- Completion Rate -->
+                <div style="text-align: center; padding: var(--space-4); background: var(--bg-secondary); border-radius: var(--radius-md);">
+                    <div style="font-size: 2.5rem; margin-bottom: var(--space-2);">📊</div>
+                    <div class="text-sm text-muted">Tingkat Penyelesaian</div>
+                    <div class="font-weight-600" style="font-size: 1.5rem;"><?= $completionRate ?>%</div>
+                    <div class="text-xs text-muted"><?= $completedTasksAll ?>/<?= $totalTasksAll ?> tugas</div>
+                </div>
+                
+                <!-- On-Time Rate -->
+                <div style="text-align: center; padding: var(--space-4); background: var(--bg-secondary); border-radius: var(--radius-md);">
+                    <div style="font-size: 2.5rem; margin-bottom: var(--space-2);">⏱️</div>
+                    <div class="text-sm text-muted">Tepat Waktu</div>
+                    <div class="font-weight-600" style="font-size: 1.5rem;"><?= $onTimeRate ?>%</div>
+                    <div class="text-xs text-muted"><?= $onTimeCount ?>/<?= $totalWithDeadline ?> tugas</div>
+                </div>
+                
+                <!-- Average Time -->
+                <div style="text-align: center; padding: var(--space-4); background: var(--bg-secondary); border-radius: var(--radius-md);">
+                    <div style="font-size: 2.5rem; margin-bottom: var(--space-2);">⏳</div>
+                    <div class="text-sm text-muted">Rata-rata Waktu</div>
+                    <div class="font-weight-600" style="font-size: 1.5rem;"><?= $avgCompletionDays ?></div>
+                    <div class="text-xs text-muted">hari/tugas</div>
+                </div>
+            </div>
+            
+            <!-- Progress Bar for Overall Rating -->
+            <div class="mt-4">
+                <div class="d-flex justify-between align-center mb-2">
+                    <span class="text-sm font-weight-500">Indikator Performa</span>
+                    <span class="text-xs text-muted">Berdasarkan tingkat penyelesaian tugas dan ketepatan waktu</span>
+                </div>
+                <div class="progress" style="height: 12px;">
+                    <div class="progress-bar bg-<?= $ratingColor ?>" style="width: <?= $ratingScore ?>%;"></div>
+                </div>
+                <div class="d-flex justify-between mt-2">
+                    <span class="text-xs text-muted">Buruk</span>
+                    <span class="text-xs text-muted">Perlu Perbaikan</span>
+                    <span class="text-xs text-muted">Cukup</span>
+                    <span class="text-xs text-muted">Baik</span>
+                    <span class="text-xs text-muted">Sangat Baik</span>
+                </div>
+            </div>
+            
+            <!-- Additional Stats -->
+            <div class="d-grid mt-4" style="grid-template-columns: repeat(3, 1fr); gap: var(--space-4);">
+                <div style="padding: var(--space-3); background: var(--bg-secondary); border-radius: var(--radius);">
+                    <div class="text-xs text-muted">Tugas Terlambat</div>
+                    <div class="font-weight-600 text-error"><?= $lateCount ?></div>
+                </div>
+                <div style="padding: var(--space-3); background: var(--bg-secondary); border-radius: var(--radius);">
+                    <div class="text-xs text-muted">Sedang Dikerjakan</div>
+                    <div class="font-weight-600 text-warning"><?= $stats['in_progress_tasks'] ?></div>
+                </div>
+                <div style="padding: var(--space-3); background: var(--bg-secondary); border-radius: var(--radius);">
+                    <div class="text-xs text-muted">Tugas Ditunda</div>
+                    <div class="font-weight-600"><?= $stats['pending_tasks'] ?></div>
+                </div>
             </div>
         </div>
     </div>

@@ -90,6 +90,21 @@ foreach ($notes as $note) {
     ];
 }
 
+// Search organizer notes (limit 5)
+$stmt = $db->prepare("SELECT id, title FROM organizer_notes WHERE user_id = ? AND is_trashed = 0 AND (LOWER(title) LIKE ? OR LOWER(content) LIKE ?) ORDER BY updated_at DESC LIMIT 5");
+$stmt->bind_param('iss', $userId, $searchTerm, $searchTerm);
+$stmt->execute();
+$organizerNotes = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+foreach ($organizerNotes as $note) {
+    $results[] = [
+        'type' => 'organizer',
+        'icon' => '📋',
+        'title' => $note['title'] ?: 'Untitled Note',
+        'subtitle' => 'Organizer',
+        'url' => 'index.php?page=organizer'
+    ];
+}
+
 // Search quick links (limit 5)
 $stmt = $db->prepare("SELECT id, title, url FROM quick_links WHERE user_id = ? AND (LOWER(title) LIKE ? OR LOWER(url) LIKE ?) ORDER BY created_at DESC LIMIT 5");
 $stmt->bind_param('iss', $userId, $searchTerm, $searchTerm);
